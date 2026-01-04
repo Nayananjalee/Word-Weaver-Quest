@@ -25,7 +25,7 @@ git push origin main
    - Name: `word-weaver-backend`
    - Root Directory: `backend`
    - Runtime: `Python 3`
-   - Build: `pip install -r requirements.txt`
+   - Build Command: `pip install --upgrade pip && pip install -r requirements.txt`
    - Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
    - Plan: `Free`
 5. **Environment Variables** (click "Advanced"):
