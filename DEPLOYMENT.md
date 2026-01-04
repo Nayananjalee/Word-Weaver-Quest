@@ -30,9 +30,11 @@ git push origin main
 
 ### Step 3: Add Environment Variables
 In Render dashboard, go to **Environment** tab and add:
-- `GOOGLE_API_KEY` = `AIzaSyBpxv44V_PEd6bdgDozziJyOAYhCauZmd0`
-- `SUPABASE_URL` = `https://srfupfzlipfowemczsal.supabase.co`
-- `SUPABASE_KEY` = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyZnVwZnpsaXBmb3dlbWN6c2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0ODMyNDcsImV4cCI6MjA3MzA1OTI0N30.ac9Dy8suPxd1K0TNugjONgjlfcxskVqYcOdlJIXs8rY`
+- `GOOGLE_API_KEY` = `your_google_api_key_here`
+- `SUPABASE_URL` = `your_supabase_url_here`
+- `SUPABASE_KEY` = `your_supabase_anon_key_here`
+
+⚠️ **Security Note**: Get these values from your local `.env` file. Never commit real keys to Git!
 
 ### Step 4: Get Backend URL
 After deployment, copy your backend URL (e.g., `https://word-weaver-backend.onrender.com`)
