@@ -1,0 +1,256 @@
+.engagement-tracker {
+  position: relative;
+}
+
+/* Mini Gauge (always visible) */
+.mini-gauge {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 900;
+  width: 140px;
+}
+
+.mini-gauge-svg {
+  width: 100%;
+  height: 60px;
+}
+
+.gauge-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 20px;
+}
+
+.trend-arrow {
+  font-weight: bold;
+}
+
+.trend-arrow.increasing {
+  color: #00C851;
+}
+
+.trend-arrow.declining {
+  color: #FF4444;
+}
+
+.trend-arrow.stable {
+  color: #666;
+}
+
+.risk-indicator {
+  font-size: 18px;
+}
+
+/* Intervention Overlay */
+.intervention-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.intervention-content {
+  background: white;
+  padding: 60px;
+  border-radius: 24px;
+  text-align: center;
+  max-width: 600px;
+  position: relative;
+  animation: scaleIn 0.3s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.intervention-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: bounce 0.6s ease-out;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+.intervention-content h2 {
+  font-size: 32px;
+  margin: 20px 0;
+  color: #333;
+  font-weight: 600;
+}
+
+/* Break Timer */
+.break-timer {
+  margin-top: 30px;
+}
+
+.break-timer p {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.timer-progress {
+  width: 100%;
+  height: 12px;
+  background: #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.timer-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  width: 100%;
+  animation: timerCountdown 120s linear;
+}
+
+@keyframes timerCountdown {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Confetti Animation */
+.confetti-animation {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: -10px;
+  animation: confettiFall 3s linear forwards;
+  opacity: 0.8;
+}
+
+@keyframes confettiFall {
+  to {
+    transform: translateY(600px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Intervention Type Styling */
+.intervention-overlay.break .intervention-content {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.intervention-overlay.reward .intervention-content {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.intervention-overlay.difficulty_adjust .intervention-content {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.intervention-overlay.encouragement .intervention-content {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+}
+
+.intervention-overlay.break .intervention-content h2,
+.intervention-overlay.reward .intervention-content h2,
+.intervention-overlay.difficulty_adjust .intervention-content h2,
+.intervention-overlay.encouragement .intervention-content h2 {
+  color: white;
+}
+
+.intervention-overlay.break .break-timer p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Debug Info */
+.tracker-debug {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 900;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mini-gauge {
+    top: 10px;
+    right: 10px;
+    width: 120px;
+    padding: 12px;
+  }
+  
+  .intervention-content {
+    padding: 40px 30px;
+    margin: 20px;
+  }
+  
+  .intervention-content h2 {
+    font-size: 24px;
+  }
+  
+  .intervention-icon {
+    font-size: 60px;
+  }
+  
+  .tracker-debug {
+    bottom: 10px;
+    right: 10px;
+    font-size: 10px;
+  }
+}
+
+/* Pulse animation for critical risk */
+.mini-gauge.critical {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(255, 68, 68, 0.5);
+  }
+}

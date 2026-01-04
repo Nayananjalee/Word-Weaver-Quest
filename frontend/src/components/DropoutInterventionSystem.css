@@ -1,0 +1,287 @@
+/**
+ * Styles for Dropout Intervention System
+ * Animated interventions with Sinhala cultural design elements
+ */
+
+.dropout-intervention-system {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+/* Risk Indicator (Always Visible) */
+.risk-indicator {
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 3px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.risk-gauge {
+  position: relative;
+  width: 60px;
+  height: 60px;
+}
+
+.risk-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  font-weight: bold;
+  color: #374151;
+}
+
+.risk-level-text {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 6px;
+  letter-spacing: 0.5px;
+}
+
+/* Risk Trend Mini Chart */
+.risk-trend {
+  margin-top: 10px;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.trend-label {
+  font-size: 10px;
+  color: #6b7280;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+/* Intervention Overlay */
+.intervention-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Intervention Modal */
+.intervention-modal {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+  animation: slideIn 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-100px) scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.intervention-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: color 0.2s;
+}
+
+.intervention-close:hover {
+  color: #374151;
+}
+
+.intervention-message {
+  text-align: center;
+}
+
+.intervention-message h3 {
+  font-size: 28px;
+  margin-bottom: 12px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.intervention-action {
+  font-size: 16px;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+/* Reward Animation */
+.reward-animation {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  position: relative;
+  height: 120px;
+}
+
+.star-burst {
+  font-size: 60px;
+  position: absolute;
+  animation: starBurst 1.5s ease-out infinite;
+}
+
+.star-burst.delay-1 {
+  animation-delay: 0.2s;
+  left: -30px;
+}
+
+.star-burst.delay-2 {
+  animation-delay: 0.4s;
+  right: -30px;
+}
+
+@keyframes starBurst {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+    opacity: 1;
+  }
+}
+
+/* Encouragement Animation */
+.encouragement-animation {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  height: 120px;
+  align-items: center;
+}
+
+.happy-character {
+  font-size: 100px;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.1);
+  }
+}
+
+/* Break Animation */
+.break-animation {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  height: 120px;
+  align-items: center;
+}
+
+.relax-icon {
+  font-size: 100px;
+  animation: float 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+/* Easier Content Modal Styling */
+.intervention-modal.easier_content {
+  border-left: 6px solid #10b981;
+}
+
+.intervention-modal.reward {
+  border-left: 6px solid #f59e0b;
+  background: linear-gradient(135deg, #fef3c7 0%, white 50%);
+}
+
+.intervention-modal.encouragement {
+  border-left: 6px solid #3b82f6;
+}
+
+.intervention-modal.break {
+  border-left: 6px solid #8b5cf6;
+  background: linear-gradient(135deg, #ede9fe 0%, white 50%);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 640px) {
+  .risk-indicator {
+    top: 10px;
+    right: 10px;
+    padding: 8px;
+  }
+
+  .risk-gauge {
+    width: 50px;
+    height: 50px;
+  }
+
+  .risk-label {
+    font-size: 14px;
+  }
+
+  .intervention-modal {
+    padding: 30px 20px;
+    border-radius: 16px;
+  }
+
+  .intervention-message h3 {
+    font-size: 22px;
+  }
+
+  .reward-animation,
+  .encouragement-animation,
+  .break-animation {
+    height: 80px;
+  }
+
+  .star-burst {
+    font-size: 40px;
+  }
+
+  .happy-character,
+  .relax-icon {
+    font-size: 70px;
+  }
+}

@@ -1,0 +1,239 @@
+/* GazeTracker Styles */
+
+.gaze-tracker-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.gaze-video-feed {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 240px;
+  height: 180px;
+  border: 2px solid #4CAF50;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  z-index: 900;
+  pointer-events: auto;
+}
+
+.gaze-canvas-overlay {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 240px;
+  height: 180px;
+  z-index: 901;
+  pointer-events: none;
+}
+
+.gaze-cursor {
+  position: fixed;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 0, 0, 0.8), rgba(255, 0, 0, 0.2));
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9999;
+  transition: opacity 0.1s ease;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+.gaze-error-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(244, 67, 54, 0.95);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 1000;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease;
+}
+
+/* Calibration Screen Styles */
+
+.gaze-calibration-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calibration-overlay {
+  text-align: center;
+  color: white;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.calibration-overlay h2 {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.calibration-overlay p {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.calibration-progress {
+  top: 140px !important;
+  font-size: 16px !important;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 8px 20px;
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.calibration-target {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  animation: pulseTarget 1.5s ease-in-out infinite;
+  pointer-events: auto;
+}
+
+.calibration-target-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #FF4136 0%, #FF851B 100%);
+  border: 4px solid white;
+  box-shadow: 
+    0 0 20px rgba(255, 65, 54, 0.6),
+    0 0 40px rgba(255, 65, 54, 0.4),
+    inset 0 0 20px rgba(255, 255, 255, 0.3);
+  position: relative;
+}
+
+.calibration-target-inner::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+.skip-calibration-btn {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid white;
+  padding: 12px 30px;
+  border-radius: 25px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  pointer-events: auto;
+}
+
+.skip-calibration-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3);
+}
+
+.skip-calibration-btn:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+/* Animations */
+
+@keyframes pulseTarget {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive Design */
+
+@media (max-width: 768px) {
+  .gaze-video-feed,
+  .gaze-canvas-overlay {
+    width: 160px;
+    height: 120px;
+    bottom: 10px;
+    right: 10px;
+  }
+
+  .calibration-overlay h2 {
+    font-size: 24px;
+    top: 30px;
+  }
+
+  .calibration-overlay p {
+    font-size: 16px;
+    top: 70px;
+  }
+
+  .calibration-progress {
+    top: 110px !important;
+    font-size: 14px !important;
+  }
+
+  .calibration-target {
+    width: 50px;
+    height: 50px;
+  }
+
+  .skip-calibration-btn {
+    bottom: 30px;
+    padding: 10px 25px;
+    font-size: 14px;
+  }
+}
