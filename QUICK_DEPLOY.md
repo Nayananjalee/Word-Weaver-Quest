@@ -30,10 +30,11 @@ git push origin main
    - Plan: `Free`
 5. **Environment Variables** (click "Advanced"):
    ```
-   GOOGLE_API_KEY = AIzaSyBpxv44V_PEd6bdgDozziJyOAYhCauZmd0
-   SUPABASE_URL = https://srfupfzlipfowemczsal.supabase.co
-   SUPABASE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyZnVwZnpsaXBmb3dlbWN6c2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0ODMyNDcsImV4cCI6MjA3MzA1OTI0N30.ac9Dy8suPxd1K0TNugjONgjlfcxskVqYcOdlJIXs8rY
+   GOOGLE_API_KEY = your_new_google_api_key_here
+   SUPABASE_URL = your_supabase_url_here
+   SUPABASE_KEY = your_supabase_key_here
    ```
+   ⚠️ **NEVER commit real API keys to Git!** Get your keys from `.env` file.
 6. **Click**: Create Web Service
 7. **Wait**: 5-10 minutes for deployment
 8. **Copy**: Your backend URL (e.g., `https://word-weaver-backend.onrender.com`)
