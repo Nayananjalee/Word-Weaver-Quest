@@ -772,32 +772,69 @@ All tests should pass with ✅ status:
 
 ## 🚀 Deployment
 
-### Backend Deployment (Render/Railway)
+> **Quick Start**: See [`QUICK_DEPLOY.md`](QUICK_DEPLOY.md) for a 10-minute deployment guide!  
+> **Detailed Guide**: See [`DEPLOYMENT.md`](DEPLOYMENT.md) for comprehensive instructions.
 
+### Free Hosting Options
+
+This app is configured to deploy on **100% FREE** platforms:
+
+#### Backend: Render (Free Tier)
+- 750 hours/month free
+- Auto-deploy from GitHub
+- Free SSL & custom domains
+- Pre-configured with `render.yaml`
+
+#### Frontend: Vercel (Free Tier)
+- Unlimited deployments
+- 100GB bandwidth/month
+- Auto-deploy from GitHub
+- Pre-configured with `vercel.json`
+
+### Quick Deploy Commands
+
+**Backend (Render)**:
 ```bash
 # Build Command
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # Start Command
 uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
-### Frontend Deployment (Hugging Face Spaces)
-
+**Frontend (Vercel)**:
 ```bash
 # Build Command
-cd frontend && npm install && npm run build
+npm run build
 
-# Serve static files from build/
+# Output Directory
+build
 ```
 
 ### Environment Variables
 
-**Backend (.env)**:
-```
+**Backend (Render)**:
+```env
+GOOGLE_API_KEY=your-gemini-api-key
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key
-GEMINI_API_KEY=your-gemini-key
+SUPABASE_KEY=your-supabase-anon-key
+```
+
+**Frontend (Vercel)**:
+```env
+REACT_APP_API_URL=https://your-backend.onrender.com
+```
+
+### Deployment Files Created
+
+✅ All deployment configurations are ready:
+- `vercel.json` - Vercel configuration
+- `backend/render.yaml` - Render configuration  
+- `backend/Procfile` - Process startup
+- `backend/runtime.txt` - Python version
+- `frontend/src/config.js` - API URL management
+
+**👉 Start Here**: [`QUICK_DEPLOY.md`](QUICK_DEPLOY.md)
 ```
 
 **Frontend (.env.local)**:
