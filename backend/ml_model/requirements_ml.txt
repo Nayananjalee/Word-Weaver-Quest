@@ -1,0 +1,9 @@
+# Machine Learning dependencies for emotion recognition model
+
+tensorflow
+numpy
+scikit-learn
+matplotlib
+seaborn
+Pillow
+opencv-python
