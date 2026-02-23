@@ -70,6 +70,7 @@ export const SharedCameraProvider = ({ children }) => {
         stream.getTracks().forEach(track => track.stop());
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Set video srcObject when stream is available
