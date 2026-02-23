@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, forwardRef, useImperativeHandle } from 'react'; // eslint-disable-line
 import API_BASE_URL from '../config';
 import './EngagementTracker.css';
 
