@@ -4,15 +4,13 @@ import SentenceBySentenceStory from './components/SentenceBySentenceStory';
 import RewardDashboard from './components/RewardDashboard';
 import EngagementDashboard from './components/EngagementDashboard';
 import AttentionDashboard from './components/AttentionDashboard';
+import ProgressDashboard from './components/ProgressDashboard';
+import SpacedRepetitionReview from './components/SpacedRepetitionReview';
+import CognitiveLoadIndicator from './components/CognitiveLoadIndicator';
+import ParentTherapistDashboard from './components/ParentTherapistDashboard';
 import SharedCameraProvider from './components/SharedCameraProvider';
 // import HandGestureReader from './components/HandGestureReader'; // Temporarily disabled
-import { createClient } from '@supabase/supabase-js';
 import './App.css';
-
-// --- Supabase Client ---
-const supabaseUrl = 'https://srfupfzlipfowemczsal.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyZnVwZnpsaXBmb3dlbWN6c2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0ODMyNDcsImV4cCI6MjA3MzA1OTI0N30.ac9Dy8suPxd1K0TNugjONgjlfcxskVqYcOdlJIXs8rY';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function App() {
   const [storyData, setStoryData] = useState(null);
@@ -20,7 +18,18 @@ function App() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState('game'); // 'game', 'rewards', 'engagement', 'attention'
+  const [activeTab, setActiveTab] = useState('game'); // 'game', 'rewards', 'engagement', 'attention', 'progress', 'review', 'brain', 'reports'
+  const [selectedTopic, setSelectedTopic] = useState('a friendly animal');
+
+  // Topic options for story generation - child-friendly, culturally relevant
+  const storyTopics = [
+    { id: 'animal', label: '🐘 සතුන්', labelEn: 'Animals', value: 'a friendly animal in Sri Lanka' },
+    { id: 'school', label: '🏫 පාසල', labelEn: 'School', value: 'a fun day at school' },
+    { id: 'food', label: '🍛 ආහාර', labelEn: 'Food', value: 'delicious Sri Lankan food' },
+    { id: 'nature', label: '🌳 ස්වභාවය', labelEn: 'Nature', value: 'beautiful nature and trees' },
+    { id: 'family', label: '👨‍👩‍👧 පවුල', labelEn: 'Family', value: 'a happy family activity' },
+    { id: 'festival', label: '🎊 උත්සව', labelEn: 'Festivals', value: 'a Sri Lankan festival celebration' },
+  ];
 
   // --- Speak Function using Gemini Audio Generation (Free!) ---
   const speak = async (text) => {
@@ -40,12 +49,12 @@ function App() {
         for (let i = 0; i < audioData.length; i++) {
           view[i] = audioData.charCodeAt(i);
         }
-        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+        const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
         audio.play();
       } else {
-        throw new Error('Gemini audio generation failed');
+        throw new Error('TTS audio generation failed');
       }
     } catch (error) {
       console.error('Error with Gemini TTS, falling back to browser TTS:', error);
@@ -61,29 +70,17 @@ function App() {
 
   // --- User and Profile Management ---
   useEffect(() => {
-    // In a real app, you would have a proper login flow.
-    // For now, we'll use a placeholder ID and ensure a profile exists.
     const currentUserId = '123e4567-e89b-12d3-a456-426614174000'; // Placeholder UUID
     setUserId(currentUserId);
 
     const setupUserProfile = async () => {
-      // Check if profile exists
-      let { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', currentUserId)
-        .single();
-
-      if (!profile) {
-        // If no profile, create one. This requires auth setup.
-        // In a real app, this would be a signup trigger.
-        // For now, we assume a user exists in `auth.users` but has no profile.
-        // You might need to create a user in Supabase Auth UI first.
-        console.log("No profile found for user. You may need to create one manually in Supabase or set up a signup function.");
-        setScore(0); // Set default score to 0 if no profile exists
-      } else {
-        // Set score from profile, default to 0 if undefined/null/NaN
+      try {
+        const response = await fetch(`${API_BASE_URL}/profile/${currentUserId}`);
+        const profile = await response.json();
         setScore(profile.score != null && !isNaN(profile.score) ? profile.score : 0);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+        setScore(0);
       }
     };
     
@@ -100,7 +97,7 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/generate-story`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, topic: 'a friendly animal' }),
+        body: JSON.stringify({ user_id: userId, topic: selectedTopic }),
       });
       const data = await response.json();
 
@@ -126,21 +123,15 @@ function App() {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
       
-      // Update score in database
+      // Update score via backend API
       try {
-        const { data: profileData } = await supabase
-          .table('profiles')
-          .select('score')
-          .eq('id', userId)
-          .single();
-        
-        const newScore = (profileData?.score || 0) + (stars * 10); // 10 points per star
-        
-        await supabase
-          .table('profiles')
-          .update({ score: newScore })
-          .eq('id', userId);
-        
+        const response = await fetch(`${API_BASE_URL}/update-score`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, stars: stars })
+        });
+        const data = await response.json();
+        const newScore = data.new_score || 0;
         setScore(newScore);
         speak(`ඔබ තරු ${stars} ක් ලබා ගත්තා! මුළු ලකුණු ${newScore}`);
       } catch (error) {
@@ -246,12 +237,74 @@ function App() {
           >
             👁️ Attention
           </button>
+          <button
+            onClick={() => setActiveTab('progress')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${
+              activeTab === 'progress'
+                ? 'bg-gradient-to-r from-teal-400 to-cyan-400 text-white shadow-lg scale-105'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            📈 Progress
+          </button>
+          <button
+            onClick={() => setActiveTab('review')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${
+              activeTab === 'review'
+                ? 'bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-lg scale-105'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            🧠 Review
+          </button>
+          <button
+            onClick={() => setActiveTab('brain')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${
+              activeTab === 'brain'
+                ? 'bg-gradient-to-r from-cyan-400 to-blue-400 text-white shadow-lg scale-105'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            🔬 Brain Load
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${
+              activeTab === 'reports'
+                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg scale-105'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            📋 Reports
+          </button>
         </div>
 
         {/* Tab Content */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {activeTab === 'game' && (
             <>
+              {/* Topic Selector */}
+              {!storyData && !loading && (
+                <div className="mb-2">
+                  <p className="text-white text-sm font-semibold text-center mb-1">🎨 මාතෘකාවක් තෝරන්න (Pick a topic):</p>
+                  <div className="flex gap-1.5 justify-center flex-wrap">
+                    {storyTopics.map(topic => (
+                      <button
+                        key={topic.id}
+                        onClick={() => setSelectedTopic(topic.value)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          selectedTopic === topic.value
+                            ? 'bg-white text-purple-700 shadow-lg scale-105 ring-2 ring-purple-300'
+                            : 'bg-white/20 text-white hover:bg-white/40'
+                        }`}
+                      >
+                        {topic.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={fetchStory}
                 disabled={loading || storyData}
@@ -286,7 +339,7 @@ function App() {
 
           {activeTab === 'rewards' && (
             <div className="flex-1 overflow-auto">
-              <RewardDashboard userId={userId} />
+              <RewardDashboard userId={userId} score={score} />
             </div>
           )}
 
@@ -299,6 +352,30 @@ function App() {
           {activeTab === 'attention' && userId && (
             <div className="flex-1 overflow-auto">
               <AttentionDashboard userId={userId} />
+            </div>
+          )}
+
+          {activeTab === 'progress' && userId && (
+            <div className="flex-1 overflow-auto">
+              <ProgressDashboard userId={userId} />
+            </div>
+          )}
+
+          {activeTab === 'review' && userId && (
+            <div className="flex-1 overflow-auto">
+              <SpacedRepetitionReview userId={userId} />
+            </div>
+          )}
+
+          {activeTab === 'brain' && userId && (
+            <div className="flex-1 overflow-auto">
+              <CognitiveLoadIndicator userId={userId} />
+            </div>
+          )}
+
+          {activeTab === 'reports' && userId && (
+            <div className="flex-1 overflow-auto">
+              <ParentTherapistDashboard userId={userId} />
             </div>
           )}
         </div>
