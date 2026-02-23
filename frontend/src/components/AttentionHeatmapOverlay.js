@@ -55,6 +55,7 @@ const AttentionHeatmapOverlay = ({
   };
 
   // Initial fetch and periodic updates
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!userId || !isVisible) return;
 
@@ -65,6 +66,7 @@ const AttentionHeatmapOverlay = ({
   }, [userId, updateInterval, isVisible]);
 
   // Render heatmap when data changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!heatmapData || !canvasRef.current) return;
 
