@@ -552,9 +552,9 @@ class PhonemeConfusionAnalyzer:
         return json.dumps(state, ensure_ascii=False)
     
     @classmethod
-    def load_state(cls, user_id: str, state_json: str):
-        """Load analyzer from saved state."""
-        state = json.loads(state_json)
+    def load_state(cls, user_id: str, state_json):
+        """Load analyzer from saved state. Accepts str or pre-parsed dict."""
+        state = state_json if isinstance(state_json, dict) else json.loads(state_json)
         
         analyzer = cls(user_id)
         
