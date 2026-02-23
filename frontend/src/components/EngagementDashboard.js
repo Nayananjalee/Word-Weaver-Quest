@@ -76,6 +76,7 @@ const EngagementDashboard = ({ userId, isVisible = true }) => {
   }, [userId, isVisible]);
 
   // Show intervention alert
+  // eslint-disable-next-line no-unused-vars
   const showIntervention = (intervention) => {
     setInterventionAlert(intervention);
     
