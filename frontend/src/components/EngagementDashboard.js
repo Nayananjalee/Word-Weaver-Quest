@@ -87,7 +87,13 @@ const EngagementDashboard = ({ userId, isVisible = true }) => {
 
   if (!isVisible) return null;
   if (loading) return <div className="engagement-loading">Loading engagement data...</div>;
-  if (error) return <div className="engagement-error">⚠️ {error}</div>;
+  if (error) return (
+    <div className="engagement-error" style={{textAlign:'center', padding:'2rem', color:'#fff', opacity:0.8}}>
+      <div style={{fontSize:'2.5rem', marginBottom:'0.5rem'}}>📊</div>
+      <p style={{fontWeight:'bold', marginBottom:'0.3rem'}}>No Engagement Data Yet</p>
+      <p style={{fontSize:'0.85rem', opacity:0.7}}>Play a story first — engagement tracking will start automatically.</p>
+    </div>
+  );
   if (!dashboardData) return null;
 
   // Provide safe defaults to prevent NaN errors
@@ -121,7 +127,7 @@ const EngagementDashboard = ({ userId, isVisible = true }) => {
     labels: visualizations.components.labels,
     datasets: [{
       label: 'Current Session',
-      data: visualizations.components.datasets[0].data,
+      data: visualizations.components.datasets?.[0]?.data || [],
       backgroundColor: 'rgba(66, 133, 244, 0.2)',
       borderColor: '#4285F4',
       pointBackgroundColor: '#4285F4',
@@ -197,8 +203,8 @@ const EngagementDashboard = ({ userId, isVisible = true }) => {
               <div className="trend-indicator">
                 Trend: {visualizations.gauge.trend_arrow} {statistics.current_trend}
               </div>
-              <div className={`risk-badge ${visualizations.gauge.risk_level}`}>
-                {visualizations.gauge.risk_level.toUpperCase()} RISK
+              <div className={`risk-badge ${visualizations.gauge.risk_level || 'low'}`}>
+                {(visualizations.gauge.risk_level || 'low').toUpperCase()} RISK
               </div>
             </div>
           </div>
@@ -305,22 +311,22 @@ const EngagementDashboard = ({ userId, isVisible = true }) => {
           <h3>Dropout Risk Assessment</h3>
           <div className="risk-content">
             <div className="risk-score-container">
-              <div className={`risk-score-circle ${dropout_prediction.risk_level}`}>
-                <span className="risk-score">{Math.round(dropout_prediction.risk_score)}</span>
+              <div className={`risk-score-circle ${dropout_prediction.risk_level || 'low'}`}>
+                <span className="risk-score">{Math.round(dropout_prediction.risk_score || 0)}</span>
                 <span className="risk-label">Risk Score</span>
               </div>
             </div>
             
             <div className="risk-details">
-              <div className={`risk-level-badge ${dropout_prediction.risk_level}`}>
-                {dropout_prediction.risk_level.toUpperCase()}
+              <div className={`risk-level-badge ${dropout_prediction.risk_level || 'low'}`}>
+                {(dropout_prediction.risk_level || 'low').toUpperCase()}
               </div>
               
-              {dropout_prediction.risk_factors.length > 0 ? (
+              {(dropout_prediction.risk_factors || []).length > 0 ? (
                 <div className="risk-factors">
                   <h4>Risk Factors:</h4>
                   <ul>
-                    {dropout_prediction.risk_factors.map((factor, idx) => (
+                    {(dropout_prediction.risk_factors || []).map((factor, idx) => (
                       <li key={idx}>{factor.replace(/_/g, ' ')}</li>
                     ))}
                   </ul>
