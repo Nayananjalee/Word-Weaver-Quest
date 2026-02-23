@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, forwardRef, useImperativeHandle } from 'react';
 import API_BASE_URL from '../config';
 import './EngagementTracker.css';
 
 /**
  * Real-time Engagement Tracker
+ * 
+ * Uses forwardRef + useImperativeHandle to expose startResponseTimer/endResponseTimer
+ * to parent components. Based on multimodal engagement scoring framework
+ * (Ref: Dewan et al., 2023 - "Engagement Detection in Online Learning").
  * 
  * This component:
  * 1. Tracks multimodal signals (gesture, response time, attention)
@@ -16,19 +20,25 @@ import './EngagementTracker.css';
  * - Response time tracking (timer)
  * - Attention detection (eye contact from face detection)
  */
-const EngagementTracker = ({ 
+const EngagementTracker = forwardRef(({ 
   userId, 
   gestureAccuracy = 0.5,
   hasEyeContact = true,
   currentEmotion = 'neutral',
   onInterventionTriggered 
-}) => {
+}, ref) => {
   const [engagementScore, setEngagementScore] = useState(50);
   const [trend, setTrend] = useState('stable');
   const [riskLevel, setRiskLevel] = useState('low');
   const [interventionAlert, setInterventionAlert] = useState(null);
   const [responseStartTime, setResponseStartTime] = useState(null);
   const [isTracking, setIsTracking] = useState(false);
+
+  // Expose methods to parent component via useImperativeHandle
+  useImperativeHandle(ref, () => ({
+    startResponseTimer: startResponseTimer,
+    endResponseTimer: endResponseTimer
+  }));
 
   // Track engagement signal
   const trackEngagement = async (gesture, responseTime, eyeContact, emotion = 'neutral') => {
@@ -202,25 +212,10 @@ const EngagementTracker = ({
           </small>
         </div>
       )}
-
-      {/* Expose methods to parent component via ref */}
-      <div style={{ display: 'none' }}>
-        <button ref={(el) => el && (el.startTimer = startResponseTimer)}>Start</button>
-        <button ref={(el) => el && (el.endTimer = endResponseTimer)}>End</button>
-      </div>
     </div>
   );
-};
+});
 
-// Export methods for parent component to call
-export const useEngagementTracker = () => {
-  const trackerRef = useRef(null);
-  
-  return {
-    trackerRef,
-    startTracking: () => trackerRef.current?.startTimer?.(),
-    endTracking: () => trackerRef.current?.endTimer?.()
-  };
-};
+EngagementTracker.displayName = 'EngagementTracker';
 
 export default EngagementTracker;
