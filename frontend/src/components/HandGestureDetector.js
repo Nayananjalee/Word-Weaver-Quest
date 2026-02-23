@@ -86,6 +86,7 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
       unsubscribe();
       // Don't stop stream - managed by SharedCameraProvider
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, isReady, stream, cameraInitialized, cameraError]);
 
   // Reset finger count when component becomes inactive
