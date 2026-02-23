@@ -1,6 +1,13 @@
 ﻿import React from 'react';
 
-function RewardDashboard({ score }) {
+function RewardDashboard({ userId, score: propScore }) {
+  const [score, setScore] = React.useState(propScore || 0);
+
+  React.useEffect(() => {
+    if (propScore !== undefined && propScore !== null) {
+      setScore(propScore);
+    }
+  }, [propScore]);
   return (
     <div className="bg-gradient-to-br from-yellow-200 to-orange-200 p-4 rounded-2xl shadow-xl border-4 border-yellow-400 h-full flex flex-col relative overflow-hidden">
       {/* Animated sparkles */}
