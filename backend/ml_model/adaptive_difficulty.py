@@ -463,9 +463,9 @@ class AdaptiveDifficultyEngine:
         return json.dumps(state)
     
     @classmethod
-    def load_state(cls, user_id: str, state_json: str):
-        """Load engine from saved state."""
-        state = json.loads(state_json)
+    def load_state(cls, user_id: str, state_json):
+        """Load engine from saved state. Accepts str or pre-parsed dict."""
+        state = state_json if isinstance(state_json, dict) else json.loads(state_json)
         
         engine = cls(user_id, initial_level=state['current_level_id'])
         engine.consecutive_errors = state['consecutive_errors']
