@@ -41,13 +41,17 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   const CONFIRM_DURATION = 2000; // 2 seconds to confirm (changed from 2500ms)
   
   // Engagement tracking states
+  // eslint-disable-next-line no-unused-vars
   const [gestureAccuracy, setGestureAccuracy] = useState(0);
+  // eslint-disable-next-line no-unused-vars
   const [hasEyeContact, setHasEyeContact] = useState(true);
+  // eslint-disable-next-line no-unused-vars
   const [currentEmotion, setCurrentEmotion] = useState('neutral'); // Track child's emotion (happy, sad, frustrated, neutral)
   const engagementTrackerRef = useRef(null);
 
   // Attention tracking states
   const [showHeatmap, setShowHeatmap] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [isGazeTrackingActive, setIsGazeTrackingActive] = useState(true);
 
   // Cleanup timer on unmount or when moving to next question
