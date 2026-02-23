@@ -217,6 +217,77 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
+-- PHASE 8: Session Analytics & Learning Trajectory (Feature 7)
+-- Research: Plass & Pawar (2020), Molenaar (2022), Kapur (2020)
+-- ============================================================================
+
+-- Add learning trajectory state to profiles
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS trajectory_state JSONB;
+
+-- Session analytics summaries
+DROP TABLE IF EXISTS session_analytics CASCADE;
+
+CREATE TABLE session_analytics (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    session_id UUID REFERENCES therapy_sessions(id) ON DELETE CASCADE,
+    total_questions INTEGER NOT NULL DEFAULT 0,
+    correct_answers INTEGER NOT NULL DEFAULT 0,
+    accuracy FLOAT,
+    avg_response_time FLOAT,
+    learning_efficiency_index FLOAT,  -- LEI: correct/time ratio
+    flow_ratio FLOAT,                 -- time in flow state / total
+    zpd_alignment FLOAT,             -- how well difficulty matched ability
+    resilience_score FLOAT,           -- recovery after errors
+    engagement_consistency FLOAT,     -- response time variance measure
+    attention_quality_index FLOAT,    -- composite attention metric
+    streak_max INTEGER DEFAULT 0,
+    frustration_events INTEGER DEFAULT 0,
+    boredom_events INTEGER DEFAULT 0,
+    topic VARCHAR(100),
+    difficulty_start INTEGER,
+    difficulty_end INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_session_analytics_user_id ON session_analytics(user_id);
+CREATE INDEX idx_session_analytics_created_at ON session_analytics(created_at);
+
+-- Word mastery tracking (Elo-like rating per word)
+DROP TABLE IF EXISTS word_mastery CASCADE;
+
+CREATE TABLE word_mastery (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    word VARCHAR(100) NOT NULL,
+    mastery_score FLOAT DEFAULT 500.0,   -- Elo-like score, starts at 500
+    attempts INTEGER DEFAULT 0,
+    correct INTEGER DEFAULT 0,
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, word)
+);
+
+CREATE INDEX idx_word_mastery_user_id ON word_mastery(user_id);
+CREATE INDEX idx_word_mastery_score ON word_mastery(mastery_score);
+
+-- View: Learning trajectory overview
+CREATE OR REPLACE VIEW learning_trajectory_view AS
+SELECT
+    sa.user_id,
+    COUNT(sa.id) as total_sessions,
+    AVG(sa.accuracy) as avg_accuracy,
+    AVG(sa.learning_efficiency_index) as avg_lei,
+    AVG(sa.flow_ratio) as avg_flow_ratio,
+    AVG(sa.zpd_alignment) as avg_zpd_alignment,
+    AVG(sa.resilience_score) as avg_resilience,
+    SUM(sa.total_questions) as lifetime_questions,
+    SUM(sa.correct_answers) as lifetime_correct,
+    MAX(sa.created_at) as last_session
+FROM session_analytics sa
+GROUP BY sa.user_id;
+
+-- ============================================================================
 -- CLEANUP (Run only if resetting)
 -- ============================================================================
 
