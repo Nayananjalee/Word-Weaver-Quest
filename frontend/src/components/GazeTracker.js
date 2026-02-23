@@ -34,7 +34,7 @@ const GazeTracker = ({ userId, onGazePoint, showVisualization = false, isActive 
   const [isInitialized, setIsInitialized] = useState(false);
   const [isCalibrated, setIsCalibrated] = useState(true); // Auto-skip calibration for children
   const [calibrationStep, setCalibrationStep] = useState(0);
-  const [error, setError] = useState(null);
+  const [, setError] = useState(null);
   const [currentGaze, setCurrentGaze] = useState({ x: 0.5, y: 0.5 });
   const [gazeConfidence, setGazeConfidence] = useState(0);
 
@@ -113,6 +113,7 @@ const GazeTracker = ({ userId, onGazePoint, showVisualization = false, isActive 
       cleanup();
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream, cameraInitialized, cameraError]);
 
   // Cleanup resources
@@ -169,6 +170,7 @@ const GazeTracker = ({ userId, onGazePoint, showVisualization = false, isActive 
         drawFaceMeshVisualization(landmarks, gaze);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showVisualization]);
 
   // Calculate gaze position from facial landmarks
