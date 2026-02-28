@@ -1,0 +1,689 @@
+/* ===========================================
+   StoryLoadingAnimation - Magical Loading Screen
+   for Sinhala Speech Therapy Game
+   
+   Keeps children engaged while AI generates 
+   the story with rich animations, sparkle 
+   interactions, and phased progress messages.
+   =========================================== */
+
+/* ========== Container ========== */
+.story-loading-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 20px;
+}
+
+/* Animated gradient background */
+.story-loading-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    #1a0533 0%,
+    #2d1b69 20%,
+    #1e3a5f 40%,
+    #0d4f4f 60%,
+    #1a3a2a 80%,
+    #2d1b69 100%
+  );
+  background-size: 400% 400%;
+  animation: loading-bg-shift 12s ease infinite;
+  z-index: 0;
+}
+
+.story-loading-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(255, 215, 0, 0.15) 0%,
+    rgba(255, 100, 200, 0.08) 40%,
+    transparent 70%
+  );
+}
+
+@keyframes loading-bg-shift {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 100% 25%; }
+  50% { background-position: 100% 75%; }
+  75% { background-position: 0% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ========== Floating Background Sparkles ========== */
+.story-loading-sparkles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.story-loading-sparkle {
+  position: absolute;
+  animation: sparkle-float var(--duration, 5s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  opacity: 0.6;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5));
+  will-change: transform, opacity;
+}
+
+@keyframes sparkle-float {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateY(-30px) rotate(15deg) scale(1.2);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-15px) rotate(-10deg) scale(0.9);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateY(-40px) rotate(20deg) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 0.4;
+  }
+}
+
+/* ========== Orbiting Topic Decorations ========== */
+.story-loading-orbit {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -55%);
+  z-index: 2;
+  pointer-events: none;
+  animation: orbit-rotate 20s linear infinite;
+}
+
+.story-loading-orbit-item {
+  position: absolute;
+  font-size: 28px;
+  top: 50%;
+  left: 50%;
+  animation: orbit-item-pulse 3s ease-in-out infinite;
+  animation-delay: calc(var(--orbit-index) * 0.5s);
+  transform: 
+    rotate(calc(360deg / var(--orbit-total) * var(--orbit-index)))
+    translateX(140px)
+    rotate(calc(-360deg / var(--orbit-total) * var(--orbit-index)));
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
+}
+
+@keyframes orbit-rotate {
+  0% { transform: translate(-50%, -55%) rotate(0deg); }
+  100% { transform: translate(-50%, -55%) rotate(360deg); }
+}
+
+@keyframes orbit-item-pulse {
+  0%, 100% { 
+    transform: 
+      rotate(calc(360deg / var(--orbit-total) * var(--orbit-index)))
+      translateX(140px)
+      rotate(calc(-360deg / var(--orbit-total) * var(--orbit-index)))
+      scale(1);
+  }
+  50% { 
+    transform: 
+      rotate(calc(360deg / var(--orbit-total) * var(--orbit-index)))
+      translateX(140px)
+      rotate(calc(-360deg / var(--orbit-total) * var(--orbit-index)))
+      scale(1.4);
+  }
+}
+
+/* ========== Central Angel Scene ========== */
+.story-loading-angel-scene {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* Divine glow behind angel */
+.story-loading-divine-glow {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 215, 0, 0.5) 0%,
+    rgba(255, 183, 77, 0.3) 30%,
+    rgba(255, 152, 0, 0.15) 50%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  animation: divine-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes divine-glow-pulse {
+  0%, 100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateX(-50%) scale(1.3);
+    opacity: 1;
+  }
+}
+
+/* Angel character */
+.story-loading-angel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: angel-hover 4s ease-in-out infinite;
+}
+
+@keyframes angel-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-18px); }
+}
+
+.story-loading-angel-body {
+  font-size: 80px;
+  line-height: 1;
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.6));
+  animation: angel-breathe 3s ease-in-out infinite;
+}
+
+@keyframes angel-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* Angel wings */
+.story-loading-angel-wings {
+  position: absolute;
+  top: 5px;
+  display: flex;
+  gap: 60px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.story-loading-wing {
+  font-size: 50px;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+.story-loading-wing-left {
+  animation: wing-flap-left 2.5s ease-in-out infinite;
+  transform-origin: right center;
+}
+
+.story-loading-wing-right {
+  animation: wing-flap-right 2.5s ease-in-out infinite;
+  transform-origin: left center;
+  transform: scaleX(-1);
+}
+
+@keyframes wing-flap-left {
+  0%, 100% { transform: rotate(-5deg) scaleX(-1); }
+  50% { transform: rotate(-20deg) scaleX(-1); }
+}
+
+@keyframes wing-flap-right {
+  0%, 100% { transform: rotate(5deg) scaleX(-1); }
+  50% { transform: rotate(20deg) scaleX(-1); }
+}
+
+/* Angel halo */
+.story-loading-angel-halo {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 18px;
+  border: 3px solid #ffd700;
+  border-radius: 50%;
+  box-shadow: 
+    0 0 12px rgba(255, 215, 0, 0.8),
+    0 0 25px rgba(255, 215, 0, 0.4),
+    inset 0 0 8px rgba(255, 215, 0, 0.3);
+  animation: halo-glow 2s ease-in-out infinite;
+}
+
+@keyframes halo-glow {
+  0%, 100% {
+    box-shadow: 
+      0 0 12px rgba(255, 215, 0, 0.8),
+      0 0 25px rgba(255, 215, 0, 0.4);
+  }
+  50% {
+    box-shadow: 
+      0 0 20px rgba(255, 215, 0, 1),
+      0 0 40px rgba(255, 215, 0, 0.6),
+      0 0 60px rgba(255, 215, 0, 0.3);
+  }
+}
+
+/* ========== Magical Book ========== */
+.story-loading-book {
+  position: relative;
+  margin-top: -5px;
+  animation: book-float 3s ease-in-out infinite 0.5s;
+}
+
+@keyframes book-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+
+.story-loading-book-inner {
+  font-size: 48px;
+  filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.5));
+  animation: book-glow 2s ease-in-out infinite;
+}
+
+@keyframes book-glow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3)); }
+  50% { filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.8)); }
+}
+
+.story-loading-book-emoji {
+  display: inline-block;
+  transition: all 0.5s ease;
+}
+
+/* Book sparkles */
+.story-loading-book-sparkles {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 60px;
+  pointer-events: none;
+}
+
+.story-loading-book-sparkle {
+  position: absolute;
+  font-size: 16px;
+}
+
+.story-loading-book-sparkle.bs-1 {
+  top: -10px;
+  left: 0;
+  animation: book-sparkle-1 2s ease-in-out infinite;
+}
+
+.story-loading-book-sparkle.bs-2 {
+  top: -5px;
+  right: 0;
+  animation: book-sparkle-2 2.5s ease-in-out infinite 0.3s;
+}
+
+.story-loading-book-sparkle.bs-3 {
+  top: -15px;
+  left: 50%;
+  animation: book-sparkle-3 1.8s ease-in-out infinite 0.6s;
+}
+
+@keyframes book-sparkle-1 {
+  0%, 100% { transform: translate(0, 0) scale(0.8); opacity: 0.5; }
+  50% { transform: translate(-15px, -20px) scale(1.2); opacity: 1; }
+}
+
+@keyframes book-sparkle-2 {
+  0%, 100% { transform: translate(0, 0) scale(0.8); opacity: 0.5; }
+  50% { transform: translate(15px, -18px) scale(1.3); opacity: 1; }
+}
+
+@keyframes book-sparkle-3 {
+  0%, 100% { transform: translate(0, 0) scale(0.7); opacity: 0.4; }
+  50% { transform: translate(0, -25px) scale(1.4); opacity: 1; }
+}
+
+/* ========== Phase Message ========== */
+.story-loading-message {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  padding: 12px 30px;
+  margin-top: 5px;
+  animation: message-fade-in 0.6s ease-out;
+}
+
+@keyframes message-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(15px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.story-loading-message-emojis {
+  font-size: 28px;
+  margin-bottom: 6px;
+  animation: emojis-bounce 1.5s ease-in-out infinite;
+  letter-spacing: 8px;
+}
+
+@keyframes emojis-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.story-loading-message-sinhala {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #ffd54f;
+  text-shadow: 
+    0 0 10px rgba(255, 215, 0, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.story-loading-message-english {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 4px 0 0;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ========== Progress Trail (dots) ========== */
+.story-loading-progress-trail {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 15px;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.story-loading-progress-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.story-loading-progress-dot.completed {
+  background: rgba(76, 175, 80, 0.4);
+  border-color: #4caf50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+  transform: scale(1);
+}
+
+.story-loading-progress-dot.active {
+  background: rgba(255, 215, 0, 0.35);
+  border-color: #ffd700;
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.6);
+  transform: scale(1.2);
+  animation: dot-active-pulse 1.5s ease-in-out infinite;
+}
+
+.story-loading-progress-icon {
+  display: inline-block;
+  font-size: 16px;
+}
+
+@keyframes dot-active-pulse {
+  0%, 100% { 
+    transform: scale(1.2); 
+    box-shadow: 0 0 18px rgba(255, 215, 0, 0.6);
+  }
+  50% { 
+    transform: scale(1.35); 
+    box-shadow: 0 0 28px rgba(255, 215, 0, 0.9);
+  }
+}
+
+/* ========== Interactive Tap Sparkles ========== */
+.story-loading-tap-sparkle {
+  position: absolute;
+  font-size: 22px;
+  z-index: 20;
+  pointer-events: none;
+  animation: tap-sparkle-burst 1.2s ease-out forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes tap-sparkle-burst {
+  0% {
+    transform: translate(0, 0) scale(0.3) rotate(0deg);
+    opacity: 1;
+  }
+  30% {
+    transform: 
+      translate(
+        calc(cos(var(--angle)) * var(--distance)),
+        calc(sin(var(--angle)) * var(--distance))
+      )
+      scale(1.3)
+      rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: 
+      translate(
+        calc(cos(var(--angle)) * var(--distance) * 1.5),
+        calc(sin(var(--angle)) * var(--distance) * 1.5 - 30px)
+      )
+      scale(0)
+      rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* ========== Tap Hint ========== */
+.story-loading-tap-hint {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  margin-top: 18px;
+  padding: 8px 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  animation: tap-hint-glow 3s ease-in-out infinite;
+}
+
+@keyframes tap-hint-glow {
+  0%, 100% { 
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  50% { 
+    border-color: rgba(255, 215, 0, 0.5);
+    background: rgba(255, 215, 0, 0.08);
+  }
+}
+
+.tap-hint-sinhala {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.tap-hint-english {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 2px 0 0;
+}
+
+/* ========== Bouncing Characters at Bottom ========== */
+.story-loading-bouncing-chars {
+  position: absolute;
+  bottom: 15px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.story-loading-bouncing-char {
+  font-size: 30px;
+  animation: char-bounce 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.4));
+}
+
+@keyframes char-bounce {
+  0%, 100% { 
+    transform: translateY(0) scale(1); 
+  }
+  30% { 
+    transform: translateY(-25px) scale(1.15); 
+  }
+  50% { 
+    transform: translateY(-5px) scale(0.95); 
+  }
+  70% { 
+    transform: translateY(-15px) scale(1.05); 
+  }
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 640px) {
+  .story-loading-angel-body {
+    font-size: 60px;
+  }
+
+  .story-loading-book-inner {
+    font-size: 36px;
+  }
+
+  .story-loading-orbit {
+    width: 220px;
+    height: 220px;
+  }
+
+  .story-loading-orbit-item {
+    font-size: 22px;
+    transform: 
+      rotate(calc(360deg / var(--orbit-total) * var(--orbit-index)))
+      translateX(100px)
+      rotate(calc(-360deg / var(--orbit-total) * var(--orbit-index)));
+  }
+
+  @keyframes orbit-item-pulse {
+    0%, 100% { 
+      transform: 
+        rotate(calc(360deg / var(--orbit-total) * var(--orbit-index)))
+        translateX(100px)
+        rotate(calc(-360deg / var(--orbit-total) * var(--orbit-index)))
+        scale(1);
+    }
+    50% { 
+      transform: 
+        rotate(calc(360deg / var(--orbit-total) * var(--orbit-index)))
+        translateX(100px)
+        rotate(calc(-360deg / var(--orbit-total) * var(--orbit-index)))
+        scale(1.3);
+    }
+  }
+
+  .story-loading-message-sinhala {
+    font-size: 1.1rem;
+  }
+
+  .story-loading-progress-trail {
+    gap: 8px;
+    padding: 6px 14px;
+  }
+
+  .story-loading-progress-dot {
+    width: 26px;
+    height: 26px;
+  }
+
+  .story-loading-progress-icon {
+    font-size: 13px;
+  }
+
+  .story-loading-bouncing-char {
+    font-size: 24px;
+  }
+
+  .story-loading-divine-glow {
+    width: 150px;
+    height: 150px;
+  }
+}
+
+@media (max-width: 400px) {
+  .story-loading-container {
+    min-height: 400px;
+  }
+
+  .story-loading-angel-body {
+    font-size: 50px;
+  }
+
+  .story-loading-orbit {
+    width: 180px;
+    height: 180px;
+  }
+
+  .story-loading-bouncing-chars {
+    gap: 10px;
+  }
+
+  .story-loading-bouncing-char {
+    font-size: 20px;
+  }
+}
+
+/* ========== Reduced Motion ========== */
+@media (prefers-reduced-motion: reduce) {
+  .story-loading-sparkle,
+  .story-loading-angel,
+  .story-loading-book,
+  .story-loading-orbit,
+  .story-loading-bouncing-char {
+    animation: none !important;
+  }
+
+  .story-loading-bg {
+    animation: none !important;
+  }
+}
