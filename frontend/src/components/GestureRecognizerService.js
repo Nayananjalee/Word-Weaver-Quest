@@ -17,8 +17,9 @@
 
 import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
 
-// Pin to specific version for better CDN caching (avoid @latest re-fetching)
-const MEDIAPIPE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm';
+// Use @latest to match whatever version is installed in node_modules
+// (installed: 0.10.22-rc.20250304 — pinned versions may 404 on CDN)
+const MEDIAPIPE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task';
 
 class GestureRecognizerService {
