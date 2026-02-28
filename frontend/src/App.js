@@ -9,6 +9,7 @@ import SpacedRepetitionReview from './components/SpacedRepetitionReview';
 import CognitiveLoadIndicator from './components/CognitiveLoadIndicator';
 import ParentTherapistDashboard from './components/ParentTherapistDashboard';
 import SharedCameraProvider from './components/SharedCameraProvider';
+import StoryLoadingAnimation from './components/StoryLoadingAnimation';
 // import HandGestureReader from './components/HandGestureReader'; // Temporarily disabled
 import './App.css';
 
@@ -338,21 +339,10 @@ function App() {
                 </div>
               )}
 
-              {/* Loading state */}
+              {/* Loading state - Rich magical animation to keep children engaged */}
               {loading && (
-                <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-fade-in">
-                  <div className="loading-angel">
-                    <div className="text-6xl animate-pulse">👼</div>
-                    <div className="loading-dots">
-                      <span className="loading-dot"></span>
-                      <span className="loading-dot"></span>
-                      <span className="loading-dot"></span>
-                    </div>
-                  </div>
-                  <p className="text-white text-lg font-bold animate-pulse drop-shadow-lg">
-                    ✨ දේවදූතයා කතාවක් සකසනවා... ✨
-                  </p>
-                  <p className="text-white/70 text-sm">The Angel is preparing a story...</p>
+                <div className="flex-1 animate-fade-in">
+                  <StoryLoadingAnimation topic={selectedTopic} />
                 </div>
               )}
 
