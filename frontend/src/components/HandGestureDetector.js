@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
 import { useSharedCamera } from './SharedCameraProvider';
+import gestureService from './GestureRecognizerService';
 
 const HandGestureDetector = ({ onGestureDetected, isActive }) => {
   const { stream, error: cameraError, isInitialized: cameraInitialized, subscribe, retryCamera } = useSharedCamera();
@@ -18,40 +18,44 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
     isActiveRef.current = isActive;
   }, [isActive]);
 
-  // Initialize MediaPipe Gesture Recognizer
+  // Get preloaded GestureRecognizer from singleton service (instant if preloaded)
   useEffect(() => {
-    const initializeGestureRecognizer = async () => {
-      try {
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-        );
-        
-        const recognizer = await GestureRecognizer.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task',
-            delegate: 'GPU'
-          },
-          runningMode: 'VIDEO',
-          numHands: 1,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5
-        });
-        
-        setGestureRecognizer(recognizer);
+    let cancelled = false;
+
+    const getRecognizer = async () => {
+      // Check if already ready (instant path)
+      const cached = gestureService.getSync();
+      if (cached) {
+        console.log('HandGestureDetector: ⚡ Using pre-cached gesture recognizer (instant!)');
+        setGestureRecognizer(cached);
         setIsReady(true);
-        console.log('HandGestureDetector: Gesture recognizer initialized successfully');
+        return;
+      }
+
+      // Otherwise wait for preload to finish
+      console.log('HandGestureDetector: ⏳ Waiting for gesture recognizer preload...');
+      try {
+        const recognizer = await gestureService.get();
+        if (cancelled) return;
+        if (recognizer) {
+          console.log('HandGestureDetector: ✅ Gesture recognizer ready');
+          setGestureRecognizer(recognizer);
+          setIsReady(true);
+        } else {
+          console.warn('HandGestureDetector: Gesture recognizer unavailable, gesture control disabled');
+          setIsReady(false);
+        }
       } catch (err) {
-        console.warn('HandGestureDetector: Could not initialize gesture recognizer:', err.message);
-        console.log('HandGestureDetector: Hand gesture control will be disabled. Gaze tracking is still active.');
-        // Don't set error - fail silently and let gaze tracking work
+        if (cancelled) return;
+        console.warn('HandGestureDetector: Could not get gesture recognizer:', err.message);
         setIsReady(false);
       }
     };
 
-    initializeGestureRecognizer();
+    getRecognizer();
 
     return () => {
+      cancelled = true;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
