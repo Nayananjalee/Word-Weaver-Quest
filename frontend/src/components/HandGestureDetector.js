@@ -3,7 +3,7 @@ import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
 import { useSharedCamera } from './SharedCameraProvider';
 
 const HandGestureDetector = ({ onGestureDetected, isActive }) => {
-  const { stream, error: cameraError, isInitialized: cameraInitialized, subscribe } = useSharedCamera();
+  const { stream, error: cameraError, isInitialized: cameraInitialized, subscribe, retryCamera } = useSharedCamera();
   const videoElementRef = useRef(null);
   const canvasRef = useRef(null);
   const [gestureRecognizer, setGestureRecognizer] = useState(null);
@@ -58,9 +58,10 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
     };
   }, []);
 
-  // Use shared camera
+  // Use shared camera - initialize video as soon as stream is ready
+  // Keep camera alive even when not actively detecting gestures
   useEffect(() => {
-    if (!isActive || !isReady || !cameraInitialized || !stream) {
+    if (!isReady || !cameraInitialized || !stream) {
       if (cameraError) {
         setError(cameraError);
       }
@@ -73,13 +74,15 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
     // Create video element for processing
     const video = document.createElement('video');
     video.srcObject = stream;
-    video.autoPlay = true;
+    video.autoplay = true;
     video.playsInline = true;
     videoElementRef.current = video;
 
     video.play().then(() => {
-      console.log('HandGestureDetector: Video playing, starting detection');
+      console.log('HandGestureDetector: Video playing, starting detection loop');
       detectGestures();
+    }).catch(err => {
+      console.warn('HandGestureDetector: Video play failed:', err);
     });
 
     return () => {
@@ -87,7 +90,7 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
       // Don't stop stream - managed by SharedCameraProvider
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, isReady, stream, cameraInitialized, cameraError]);
+  }, [isReady, stream, cameraInitialized, cameraError]);
 
   // Reset finger count when component becomes inactive
   useEffect(() => {
@@ -139,28 +142,28 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
 
 
 
-  // Detect gestures continuously
+  // Detect gestures continuously - always draw video, only detect when active
   const detectGestures = () => {
-    if (!gestureRecognizer || !videoElementRef.current || !isActive) return;
+    if (!gestureRecognizer || !videoElementRef.current) return;
 
     const video = videoElementRef.current;
     const canvas = canvasRef.current;
 
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      const now = Date.now();
-      const results = gestureRecognizer.recognizeForVideo(video, now);
+    if (video.readyState === video.HAVE_ENOUGH_DATA && canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Always draw video to canvas (keeps camera feed visible)
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Draw video to canvas
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Only run gesture detection when active
+      if (isActiveRef.current) {
+        const now = Date.now();
+        const results = gestureRecognizer.recognizeForVideo(video, now);
 
-        // Draw hand landmarks
         if (results.landmarks && results.landmarks.length > 0) {
           const landmarks = results.landmarks[0];
           const hand = landmarks;
-          
+
           // Draw all landmarks as small green circles
           ctx.fillStyle = '#00FF00';
           landmarks.forEach(landmark => {
@@ -173,12 +176,12 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
           ctx.strokeStyle = '#00FF00';
           ctx.lineWidth = 2;
           const connections = [
-            [0,1],[1,2],[2,3],[3,4], // Thumb
-            [0,5],[5,6],[6,7],[7,8], // Index
-            [0,9],[9,10],[10,11],[11,12], // Middle
-            [0,13],[13,14],[14,15],[15,16], // Ring
-            [0,17],[17,18],[18,19],[19,20], // Pinky
-            [5,9],[9,13],[13,17] // Palm
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [0,9],[9,10],[10,11],[11,12],
+            [0,13],[13,14],[14,15],[15,16],
+            [0,17],[17,18],[18,19],[19,20],
+            [5,9],[9,13],[13,17]
           ];
           connections.forEach(([start, end]) => {
             ctx.beginPath();
@@ -187,53 +190,44 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
             ctx.stroke();
           });
 
-          // Highlight fingertips of extended fingers in RED (using simple logic)
+          // Highlight fingertips of extended fingers in RED
           const wrist = hand[0];
-          
-          // Check and highlight thumb
           const thumbTip = hand[4];
           const thumbIp = hand[3];
           const thumbTipDist = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y);
           const thumbIpDist = Math.hypot(thumbIp.x - wrist.x, thumbIp.y - wrist.y);
-          
+
           if (thumbTipDist > thumbIpDist * 1.3) {
             ctx.fillStyle = '#FF0000';
             ctx.beginPath();
             ctx.arc(thumbTip.x * canvas.width, thumbTip.y * canvas.height, 12, 0, 2 * Math.PI);
             ctx.fill();
-            // Add white circle in center
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(thumbTip.x * canvas.width, thumbTip.y * canvas.height, 8, 0, 2 * Math.PI);
             ctx.fill();
-            // Add text
             ctx.fillStyle = '#FF0000';
             ctx.font = 'bold 18px Arial';
             ctx.textAlign = 'center';
             ctx.fillText('👍', thumbTip.x * canvas.width, thumbTip.y * canvas.height + 6);
           }
 
-          // Check and highlight other fingers - simple Y comparison
           const fingerData = [
-            { tip: 8, mcp: 5, num: '1' },   // Index
-            { tip: 12, mcp: 9, num: '2' },  // Middle
-            { tip: 16, mcp: 13, num: '3' }, // Ring
-            { tip: 20, mcp: 17, num: '4' }  // Pinky
+            { tip: 8, mcp: 5, num: '1' },
+            { tip: 12, mcp: 9, num: '2' },
+            { tip: 16, mcp: 13, num: '3' },
+            { tip: 20, mcp: 17, num: '4' }
           ];
-          
           fingerData.forEach(finger => {
             if (hand[finger.tip].y < hand[finger.mcp].y - 0.08) {
-              // Draw red circle
               ctx.fillStyle = '#FF0000';
               ctx.beginPath();
               ctx.arc(hand[finger.tip].x * canvas.width, hand[finger.tip].y * canvas.height, 12, 0, 2 * Math.PI);
               ctx.fill();
-              // Draw white circle inside
               ctx.fillStyle = '#FFFFFF';
               ctx.beginPath();
               ctx.arc(hand[finger.tip].x * canvas.width, hand[finger.tip].y * canvas.height, 8, 0, 2 * Math.PI);
               ctx.fill();
-              // Add number label
               ctx.fillStyle = '#FF0000';
               ctx.font = 'bold 18px Arial';
               ctx.textAlign = 'center';
@@ -241,101 +235,106 @@ const HandGestureDetector = ({ onGestureDetected, isActive }) => {
             }
           });
 
-          // Count fingers and emit real-time updates
+          // Count fingers and emit
           const count = countFingers(results.landmarks);
           setFingerCount(count);
-
-          // Emit continuous updates to parent component
-          // Parent will handle the confirmation logic and progress
-          if (isActive && onGestureDetected) {
-            onGestureDetected(count); // Emit every frame (including 0)
-          }
+          if (onGestureDetected) onGestureDetected(count);
         } else {
           // No hand detected
           setFingerCount(0);
-          if (isActive && onGestureDetected) {
-            onGestureDetected(0); // Emit 0 when no hand
-          }
+          if (onGestureDetected) onGestureDetected(0);
         }
       }
+      // When not active, just shows the camera feed (no detection overlay)
     }
 
     animationFrameRef.current = requestAnimationFrame(detectGestures);
   };
 
-  // Don't show error UI - fail silently if gesture recognizer doesn't load
-  // Gaze tracking will still work
+  // Always show the camera panel (standby or active mode)
+  // This keeps the camera stream alive and MediaPipe initialized across phases
 
-  if (!isActive) {
-    return null;
-  }
-
-  // If gesture recognizer failed to initialize, show simplified message
-  if (error || !isReady) {
+  // If gesture recognizer or camera failed, show status with retry
+  if (error || cameraError || !isReady) {
+    const hasError = error || cameraError;
     return (
-      <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-4 rounded-2xl shadow-lg">
-        <div className="text-center text-gray-600">
-          <p className="text-sm">👁️ ඇස් ලුහුබැඳීම සක්‍රීයයි (Gaze tracking active)</p>
-          <p className="text-xs mt-1 text-gray-500">අත් ඉශාරා අක්‍රියයි (Hand gestures unavailable)</p>
+      <div className="gesture-panel gesture-panel-inactive">
+        <div className="gesture-panel-status">
+          <span className="gesture-status-icon">{hasError ? '📷' : '🖐️'}</span>
+          <p className="gesture-status-text">
+            {hasError
+              ? 'කැමරාව සම්බන්ධ කළ නොහැක'
+              : cameraInitialized
+                ? 'ඇඟිලි හඳුනාගැනීම පූරණය වෙමින්...'
+                : 'කැමරාව ආරම්භ වෙමින්...'}
+          </p>
+          <p className="gesture-status-sub" style={{ fontSize: '0.65rem', maxWidth: 240, lineHeight: 1.3 }}>
+            {hasError ? (error || cameraError) : 'Hand gestures loading...'}
+          </p>
+          {hasError && (
+            <button
+              onClick={() => {
+                setError(null);
+                if (retryCamera) retryCamera();
+              }}
+              style={{
+                marginTop: 8,
+                padding: '6px 16px',
+                borderRadius: 12,
+                border: 'none',
+                background: 'linear-gradient(135deg, #ffa726, #ff9800)',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(255,152,0,0.3)'
+              }}
+            >
+              🔄 නැවත උත්සාහ කරන්න (Retry)
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-100 to-purple-100 p-4 rounded-2xl shadow-lg">
-      <h3 className="text-xl font-bold text-purple-800 mb-3 text-center flex items-center justify-center gap-2">
-        <span>🖐️</span> ඔබේ ඇඟිලි පෙන්වන්න
-      </h3>
-      
-      {/* Camera preview */}
-      <div className="relative mb-3">
+    <div className={`gesture-panel ${!isActive ? 'gesture-panel-standby' : ''}`}>
+      {/* Camera Feed - Always visible */}
+      <div className="gesture-camera-feed">
         <canvas
           ref={canvasRef}
           width="640"
           height="480"
-          className="w-full rounded-xl border-4 border-purple-400 shadow-lg"
-          style={{ transform: 'scaleX(-1)' }} // Mirror the video
+          className="gesture-canvas"
+          style={{ transform: 'scaleX(-1)' }}
         />
-        
-        {/* Finger count overlay */}
-        {fingerCount > 0 && (
-          <div className="absolute top-2 right-2 bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-xl shadow-xl">
-            {fingerCount} 🖐️
-          </div>
-        )}
-      </div>
 
-      {/* Instructions */}
-      <div className="bg-white bg-opacity-90 p-3 rounded-lg">
-        <p className="text-center text-gray-700 font-semibold mb-2">
-          පිළිතුරු තෝරන්න (Choose answer):
-        </p>
-        <div className="grid grid-cols-4 gap-2 text-center text-sm">
-          <div className="bg-blue-200 p-2 rounded">
-            <div className="text-2xl">1️⃣</div>
-            <div className="text-xs text-gray-700">පළමු</div>
-          </div>
-          <div className="bg-green-200 p-2 rounded">
-            <div className="text-2xl">2️⃣</div>
-            <div className="text-xs text-gray-700">දෙවන</div>
-          </div>
-          <div className="bg-yellow-200 p-2 rounded">
-            <div className="text-2xl">3️⃣</div>
-            <div className="text-xs text-gray-700">තෙවන</div>
-          </div>
-          <div className="bg-pink-200 p-2 rounded">
-            <div className="text-2xl">4️⃣</div>
-            <div className="text-xs text-gray-700">සිව්වන</div>
-          </div>
+        {/* Big finger count badge - always visible */}
+        <div className={`gesture-finger-badge ${isActive && fingerCount > 0 ? 'gesture-finger-active' : 'gesture-finger-waiting'}`}>
+          <span className="gesture-finger-count">{isActive ? fingerCount : '👁️'}</span>
+          <span className="gesture-finger-label">{isActive ? '🖐️' : ''}</span>
+        </div>
+
+        {/* Hand detection status */}
+        <div className={`gesture-detect-status ${!isActive ? 'standby' : fingerCount > 0 ? 'detected' : 'searching'}`}>
+          {!isActive
+            ? '📷 කැමරාව සූදානම්'
+            : fingerCount > 0
+              ? '✅ අත හඳුනාගෙන ඇත'
+              : '🔍 අත පෙන්වන්න...'}
         </div>
       </div>
 
-      {!isReady && (
-        <div className="text-center mt-2">
-          <p className="text-blue-600 animate-pulse">කැමරාව සකස් වෙමින්... (Loading camera...)</p>
-        </div>
-      )}
+      {/* Finger guide strip - shows which fingers = which answer */}
+      <div className="gesture-finger-guide">
+        {[1, 2, 3, 4].map(num => (
+          <div key={num} className={`gesture-guide-item ${isActive && fingerCount === num ? 'guide-active' : ''}`}>
+            <span className="guide-num">{num}</span>
+            <span className="guide-hand">{['☝️', '✌️', '🤟', '🖖'][num - 1]}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
