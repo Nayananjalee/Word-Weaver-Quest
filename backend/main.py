@@ -266,7 +266,7 @@ report_generator = ClinicalReportGenerator()
 # ======================================
 # Enable Cross-Origin Resource Sharing for frontend access
 origins = [
-    "https://hero-dash.vercel.app",  # Production frontend (Vercel)
+    "https://word-weaver-quest-ys15.vercel.app",  # Production frontend (Vercel)
     "http://localhost:3000",  # Local development
     "http://localhost:5173",  # Vite local dev
 ]
