@@ -10,8 +10,13 @@ import CognitiveLoadIndicator from './components/CognitiveLoadIndicator';
 import ParentTherapistDashboard from './components/ParentTherapistDashboard';
 import SharedCameraProvider from './components/SharedCameraProvider';
 import StoryLoadingAnimation from './components/StoryLoadingAnimation';
+import gestureService from './components/GestureRecognizerService';
 // import HandGestureReader from './components/HandGestureReader'; // Temporarily disabled
 import './App.css';
+
+// 🚀 Start preloading MediaPipe WASM + model immediately at import time
+// This runs while the child sees the home screen / picks a topic
+gestureService.preload();
 
 function App() {
   const [storyData, setStoryData] = useState(null);
