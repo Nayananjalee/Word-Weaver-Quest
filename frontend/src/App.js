@@ -283,48 +283,83 @@ function App() {
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {activeTab === 'game' && (
             <>
-              {/* Topic Selector */}
+              {/* Magical Home Screen when no story is active */}
               {!storyData && !loading && (
-                <div className="mb-2">
-                  <p className="text-white text-sm font-semibold text-center mb-1">🎨 මාතෘකාවක් තෝරන්න (Pick a topic):</p>
-                  <div className="flex gap-1.5 justify-center flex-wrap">
-                    {storyTopics.map(topic => (
-                      <button
-                        key={topic.id}
-                        onClick={() => setSelectedTopic(topic.value)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                          selectedTopic === topic.value
-                            ? 'bg-white text-purple-700 shadow-lg scale-105 ring-2 ring-purple-300'
-                            : 'bg-white/20 text-white hover:bg-white/40'
-                        }`}
-                      >
-                        {topic.label}
-                      </button>
-                    ))}
+                <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-fade-in">
+                  {/* Angel welcome illustration */}
+                  <div className="angel-welcome-scene">
+                    <div className="welcome-divine-glow"></div>
+                    <div className="text-6xl mb-2 animate-bounce" style={{animationDuration: '2s'}}>👼</div>
+                    <div className="welcome-speech-bubble">
+                      <p className="text-lg font-bold text-amber-800 mb-1">දේවදූතයාගේ මායා කතා උයනට සාදරයෙන් පිළිගනිමු!</p>
+                      <p className="text-sm text-gray-600">Welcome to the Angel's Enchanted Story Garden!</p>
+                    </div>
                   </div>
+
+                  {/* Topic Selector - Magical Cards */}
+                  <div className="topic-selector-container">
+                    <p className="text-white text-sm font-bold text-center mb-2 drop-shadow-lg">
+                      🎨 කතාවක් තෝරන්න (Pick a topic)
+                    </p>
+                    <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
+                      {storyTopics.map(topic => (
+                        <button
+                          key={topic.id}
+                          onClick={() => setSelectedTopic(topic.value)}
+                          className={`topic-card group ${
+                            selectedTopic === topic.value ? 'topic-card-selected' : ''
+                          }`}
+                        >
+                          <span className="text-3xl block mb-1 group-hover:scale-125 transition-transform duration-300">
+                            {topic.label.split(' ')[0]}
+                          </span>
+                          <span className="text-xs font-bold block text-gray-700">{topic.labelEn}</span>
+                          <span className="text-xs block text-purple-600 mt-0.5">{topic.label.split(' ').slice(1).join(' ')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Start Story Button - Big and magical */}
+                  <button
+                    onClick={fetchStory}
+                    className="start-story-btn group"
+                  >
+                    <span className="start-story-btn-shine"></span>
+                    <span className="relative z-10 flex items-center gap-3">
+                      <span className="text-3xl group-hover:animate-bounce">📖</span>
+                      <span>
+                        <span className="block text-lg font-bold">කතාවක් පටන් ගමු!</span>
+                        <span className="block text-xs opacity-80">Start a New Story</span>
+                      </span>
+                      <span className="text-3xl group-hover:animate-bounce">🌟</span>
+                    </span>
+                  </button>
                 </div>
               )}
 
-              <button
-                onClick={fetchStory}
-                disabled={loading || storyData}
-                className={`w-full mb-2 bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-bold py-2 px-6 rounded-full text-lg shadow-lg transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${loading ? 'animate-pulse' : ''}`}
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin">⏳</span> 
-                    නව කතාවක් ගෙන එනවා...
-                  </span>
-                ) : storyData ? (
-                  '📚 නව කතාවක් 🎉'
-                ) : (
-                  '📖 නව කතාවක් ගන්න 🔥'
-                )}
-              </button>
+              {/* Loading state */}
+              {loading && (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-fade-in">
+                  <div className="loading-angel">
+                    <div className="text-6xl animate-pulse">👼</div>
+                    <div className="loading-dots">
+                      <span className="loading-dot"></span>
+                      <span className="loading-dot"></span>
+                      <span className="loading-dot"></span>
+                    </div>
+                  </div>
+                  <p className="text-white text-lg font-bold animate-pulse drop-shadow-lg">
+                    ✨ දේවදූතයා කතාවක් සකසනවා... ✨
+                  </p>
+                  <p className="text-white/70 text-sm">The Angel is preparing a story...</p>
+                </div>
+              )}
 
+              {/* Story Scene */}
               <div className="flex-1 overflow-hidden min-h-0">
                 {storyData && (
-                  <div className="h-full">
+                  <div className="h-full rounded-2xl overflow-hidden shadow-2xl">
                     <SentenceBySentenceStory
                       storyData={storyData}
                       onComplete={handleAnswer}
