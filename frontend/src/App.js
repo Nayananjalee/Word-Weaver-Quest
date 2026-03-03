@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from './config';
+
+const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost:5173';
 import SentenceBySentenceStory from './components/SentenceBySentenceStory';
 import RewardDashboard from './components/RewardDashboard';
 import EngagementDashboard from './components/EngagementDashboard';
@@ -75,8 +77,17 @@ function App() {
   };
 
   // --- User and Profile Management ---
+  // Read userId from URL query parameter (passed from SilentSpark research app)
+  // Falls back to a default UUID if not provided
   useEffect(() => {
-    const currentUserId = '123e4567-e89b-12d3-a456-426614174000'; // Placeholder UUID
+    const params = new URLSearchParams(window.location.search);
+    const researchUserId = params.get('userId');
+    const currentUserId = researchUserId || '123e4567-e89b-12d3-a456-426614174000';
+    
+    if (researchUserId) {
+      console.log('🔗 Research app userId detected:', researchUserId);
+    }
+    
     setUserId(currentUserId);
 
     const setupUserProfile = async () => {
@@ -194,6 +205,30 @@ function App() {
             <span className="text-xl">⭐</span>
             <span className="text-lg font-bold text-white">{isNaN(score) || score == null ? 0 : score}</span>
           </div>
+
+          {/* Back to SilentSpark - Floating Top Right */}
+          <a
+            href={RESEARCH_APP_URL}
+            className="absolute right-0 top-0 z-10"
+            style={{
+              background: 'rgba(255,255,255,0.25)',
+              backdropFilter: 'blur(8px)',
+              border: '2px solid rgba(255,255,255,0.5)',
+              borderRadius: '9999px',
+              padding: '8px 18px',
+              color: 'white',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+              transition: 'all 0.2s'
+            }}
+          >
+            ← SilentSpark
+          </a>
 
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-0.5 bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 bg-clip-text text-transparent animate-gradient drop-shadow-lg">
             සිංහල කතා ලෝකය
