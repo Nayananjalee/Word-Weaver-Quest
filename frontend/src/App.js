@@ -77,14 +77,15 @@ function App() {
   };
 
   // --- User and Profile Management ---
-  // Read userId from URL query param (passed from SilentSpark research app)
+  // Read userId and username from URL query params (passed from SilentSpark research app)
   // Falls back to default UUID if not provided (standalone mode)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const researchUserId = params.get('userId');
+    const researchUsername = params.get('username');
     const currentUserId = researchUserId || '123e4567-e89b-12d3-a456-426614174000';
     if (researchUserId) {
-      console.log('\ud83d\udd17 Research app userId detected:', researchUserId);
+      console.log('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')');
     }
     setUserId(currentUserId);
 
