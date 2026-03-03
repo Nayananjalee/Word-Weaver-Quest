@@ -842,34 +842,40 @@ async def get_story(request: StoryRequest):
 # --------------------------------------
 
 @app.get("/profile/{user_id}")
-def get_profile(user_id: str):
-    """Get user profile by ID. Creates a default profile if not found."""
+def get_profile(user_id: str, username: str = None):
+    """Get user profile by ID. Creates a default profile if not found.
+    Accepts optional username query param to set the display name (from research app)."""
+    display_name = username or 'child'
     try:
         result = supabase.table('profiles').select('*').eq('id', user_id).single().execute()
         if result.data:
+            # Update username if provided and currently set to default
+            if username and result.data.get('username') in ('child', 'default_child', '', None):
+                supabase.table('profiles').update({'username': display_name}).eq('id', user_id).execute()
+                result.data['username'] = display_name
             return result.data
-        # Auto-create profile
+        # Auto-create profile with the correct username
         supabase.table('profiles').insert({
             'id': user_id,
-            'username': 'child',
+            'username': display_name,
             'score': 0,
             'learning_level': 1,
             'difficult_words': '[]'
         }).execute()
-        return {"id": user_id, "score": 0, "learning_level": 1}
+        return {"id": user_id, "username": display_name, "score": 0, "learning_level": 1}
     except Exception as e:
         # If select fails (no rows), create the profile
         try:
             supabase.table('profiles').insert({
                 'id': user_id,
-                'username': 'child',
+                'username': display_name,
                 'score': 0,
                 'learning_level': 1,
                 'difficult_words': '[]'
             }).execute()
-            return {"id": user_id, "score": 0, "learning_level": 1}
+            return {"id": user_id, "username": display_name, "score": 0, "learning_level": 1}
         except Exception:
-            return {"id": user_id, "score": 0, "learning_level": 1}
+            return {"id": user_id, "username": display_name, "score": 0, "learning_level": 1}
 
 
 class UpdateScoreRequest(BaseModel):
