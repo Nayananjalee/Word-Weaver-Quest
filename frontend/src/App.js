@@ -84,6 +84,7 @@ function App() {
     const researchUserId = params.get('userId');
     const researchUsername = params.get('username');
     const currentUserId = researchUserId || '123e4567-e89b-12d3-a456-426614174000';
+    const currentUsername = researchUsername || 'default_child';
     if (researchUserId) {
       console.log('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')');
     }
@@ -91,7 +92,8 @@ function App() {
 
     const setupUserProfile = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/profile/${currentUserId}`);
+        // Pass username so the backend can create/update the profile with the correct name
+        const response = await fetch(`${API_BASE_URL}/profile/${currentUserId}?username=${encodeURIComponent(currentUsername)}`);
         const profile = await response.json();
         setScore(profile.score != null && !isNaN(profile.score) ? profile.score : 0);
       } catch (error) {
