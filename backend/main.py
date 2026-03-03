@@ -800,6 +800,12 @@ async def get_story(request: StoryRequest):
             # Gemini returned invalid JSON
             raise HTTPException(status_code=500, detail="Failed to parse story JSON from AI")
 
+        # Normalize: Gemini may return a list directly instead of {"story_sentences": [...]}
+        if isinstance(story_data, list):
+            story_data = {"story_sentences": story_data}
+        elif isinstance(story_data, dict) and "story_sentences" not in story_data:
+            story_data = {"story_sentences": []}
+
         # ===== STEP 4: Save to Database =====
         # Combine sentences to create the full text block for storage
         full_story_text = " ".join([s['text'] for s in story_data.get('story_sentences', [])])
@@ -1027,6 +1033,12 @@ def test_story_generation(keywords: str = "හාවා, ඉබ්බා, කු
                 "raw_json": game_json
             }
         
+        # Normalize: Gemini may return a list directly instead of {"story_sentences": [...]}
+        if isinstance(story_data, list):
+            story_data = {"story_sentences": story_data}
+        elif isinstance(story_data, dict) and "story_sentences" not in story_data:
+            story_data = {"story_sentences": []}
+
         return {
             "success": True,
             "raw_story": raw_story,
