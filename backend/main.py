@@ -1622,12 +1622,27 @@ async def track_phoneme_confusion(request: PhonemeAnswerRequest):
             for p1, p2 in confused_phonemes:
                 pair_key = "-".join(sorted([p1, p2]))
                 
-                # Insert or update phoneme error
-                supabase.table('phoneme_errors').upsert({
-                    'user_id': request.user_id,
-                    'phoneme_pair': pair_key,
-                    'error_count': 1
-                }, on_conflict='user_id,phoneme_pair').execute()
+                # Increment error count (or insert with count=1 if new)
+                try:
+                    existing = supabase.table('phoneme_errors').select('error_count').eq('user_id', request.user_id).eq('phoneme_pair', pair_key).single().execute()
+                    if existing.data:
+                        new_count = (existing.data.get('error_count', 0) or 0) + 1
+                        supabase.table('phoneme_errors').update({
+                            'error_count': new_count,
+                            'last_error_at': datetime.now().isoformat()
+                        }).eq('user_id', request.user_id).eq('phoneme_pair', pair_key).execute()
+                    else:
+                        supabase.table('phoneme_errors').insert({
+                            'user_id': request.user_id,
+                            'phoneme_pair': pair_key,
+                            'error_count': 1
+                        }).execute()
+                except Exception:
+                    supabase.table('phoneme_errors').insert({
+                        'user_id': request.user_id,
+                        'phoneme_pair': pair_key,
+                        'error_count': 1
+                    }).execute()
         
         # Get updated statistics
         stats = analyzer.get_summary_statistics()
@@ -1807,6 +1822,18 @@ async def track_engagement(request: EngagementSignalRequest):
         supabase.table('profiles').update({
             'engagement_state': state
         }).eq('id', request.user_id).execute()
+        
+        # Log engagement event to engagement_logs table
+        try:
+            supabase.table('engagement_logs').insert({
+                'user_id': request.user_id,
+                'session_id': f"session_{int(time.time())}",
+                'engagement_score': prediction.engagement_score,
+                'response_time': request.response_time_seconds,
+                'gesture_quality': request.gesture_accuracy
+            }).execute()
+        except Exception as log_err:
+            print(f"Warning: Could not log engagement event: {log_err}")
         
         # Trigger intervention if needed
         intervention_action = None
@@ -2818,6 +2845,24 @@ async def complete_session(request: SessionReportRequest):
         except Exception as db_err:
             print(f"Warning: Could not save session analytics: {db_err}")
         
+        # Save to therapy_sessions table for therapist visibility
+        try:
+            summary_dict = summary.to_dict()
+            supabase.table('therapy_sessions').upsert({
+                'id': summary.session_id,
+                'user_id': request.user_id,
+                'ended_at': datetime.now().isoformat(),
+                'total_questions': summary_dict.get('total_questions', 0),
+                'correct_answers': summary_dict.get('correct_answers', 0),
+                'average_response_time': summary_dict.get('avg_response_time', 0),
+                'average_engagement_score': summary_dict.get('avg_engagement', 50),
+                'difficulty_level_start': summary_dict.get('starting_difficulty', 2),
+                'difficulty_level_end': summary_dict.get('ending_difficulty', 2),
+                'dropout': False
+            }).execute()
+        except Exception as ts_err:
+            print(f"Warning: Could not save therapy_session: {ts_err}")
+        
         # Clean up session
         del user_session_analytics[request.user_id]
         
@@ -3028,6 +3073,21 @@ async def srs_review_word(request: SRSReviewRequest):
             'srs_state': state
         }).eq('id', request.user_id).execute()
         
+        # Sync to word_mastery table for persistent per-word tracking
+        try:
+            if request.word in engine.cards:
+                card = engine.cards[request.word]
+                supabase.table('word_mastery').upsert({
+                    'user_id': request.user_id,
+                    'word': request.word,
+                    'mastery_score': round(card.easiness * 100, 1),
+                    'attempts': card.total_reviews,
+                    'correct': card.correct_reviews,
+                    'last_seen_at': datetime.now().isoformat()
+                }, on_conflict='user_id,word').execute()
+        except Exception as wm_err:
+            print(f"Warning: Could not sync word_mastery: {wm_err}")
+        
         return {"success": True, "review_result": result}
     except Exception as e:
         print(f"SRS review error: {e}")
@@ -3216,15 +3276,36 @@ async def generate_clinical_report(request: ClinicalReportRequest):
             report_period_days=request.report_period_days
         )
         
+        # Load profile data for fallback
+        try:
+            _profile = supabase.table('profiles').select('*').eq('id', request.user_id).single().execute()
+            _profile_data = _profile.data or {}
+        except Exception:
+            _profile_data = {}
+        
         # Feature 1: Adaptive Difficulty State
         if request.user_id in user_adaptive_engines:
             report_data.adaptive_state = user_adaptive_engines[request.user_id].get_state_summary()
+        elif _profile_data.get('adaptive_state'):
+            try:
+                eng = AdaptiveDifficultyEngine.load_state(request.user_id, _profile_data['adaptive_state'])
+                report_data.adaptive_state = eng.get_state_summary()
+            except Exception:
+                pass
         
         # Feature 2: Phoneme Analysis
         if request.user_id in user_phoneme_analyzers:
             analyzer = user_phoneme_analyzers[request.user_id]
+        elif _profile_data.get('phoneme_state'):
+            try:
+                analyzer = PhonemeConfusionAnalyzer.load_state(request.user_id, _profile_data['phoneme_state'])
+            except Exception:
+                analyzer = None
+        else:
+            analyzer = None
+        
+        if analyzer:
             report_data.phoneme_stats = analyzer.get_summary_statistics()
-            # Get top confused pairs
             try:
                 recs = analyzer.get_therapy_recommendations()
                 report_data.top_confused_pairs = [
@@ -3238,6 +3319,15 @@ async def generate_clinical_report(request: ClinicalReportRequest):
         # Feature 3: Engagement
         if request.user_id in user_engagement_scorers:
             scorer = user_engagement_scorers[request.user_id]
+        elif _profile_data.get('engagement_state'):
+            try:
+                scorer = EngagementScorer.load_state(_profile_data['engagement_state'])
+            except Exception:
+                scorer = None
+        else:
+            scorer = None
+        
+        if scorer:
             eng_stats = scorer.get_statistics()
             report_data.engagement_stats = eng_stats
             report_data.avg_engagement = eng_stats.get('average_engagement', 50.0)
@@ -3246,6 +3336,15 @@ async def generate_clinical_report(request: ClinicalReportRequest):
         # Feature 4: Attention
         if request.user_id in user_attention_trackers:
             tracker = user_attention_trackers[request.user_id]
+        elif _profile_data.get('attention_state'):
+            try:
+                tracker = AttentionHeatmapTracker.load_state(_profile_data['attention_state'])
+            except Exception:
+                tracker = None
+        else:
+            tracker = None
+        
+        if tracker:
             att_stats = tracker.get_attention_statistics()
             report_data.attention_stats = att_stats
             report_data.focus_quality = att_stats.get('focus_quality', 'moderate')
@@ -3285,8 +3384,13 @@ async def generate_clinical_report(request: ClinicalReportRequest):
             pass
         
         # Feature 8: Spaced Repetition
-        if request.user_id in user_srs_engines:
-            srs = user_srs_engines[request.user_id]
+        srs = user_srs_engines.get(request.user_id)
+        if not srs and _profile_data.get('srs_state'):
+            try:
+                srs = SpacedRepetitionEngine.load_state(_profile_data['srs_state'])
+            except Exception:
+                srs = None
+        if srs:
             srs_stats = srs.get_statistics()
             report_data.srs_stats = srs_stats
             report_data.words_mastered = srs_stats.get('words_learned', 0)
@@ -3294,8 +3398,13 @@ async def generate_clinical_report(request: ClinicalReportRequest):
             report_data.words_struggling = srs_stats.get('words_struggling', 0)
         
         # Feature 9: Cognitive Load
-        if request.user_id in user_cognitive_monitors:
-            cl_monitor = user_cognitive_monitors[request.user_id]
+        cl_monitor = user_cognitive_monitors.get(request.user_id)
+        if not cl_monitor and _profile_data.get('cognitive_load_state'):
+            try:
+                cl_monitor = CognitiveLoadMonitor.load_state(_profile_data['cognitive_load_state'])
+            except Exception:
+                cl_monitor = None
+        if cl_monitor:
             cl_stats = cl_monitor.get_statistics()
             report_data.cognitive_load_stats = cl_stats
             report_data.avg_cognitive_load = cl_stats.get('averages', {}).get('total', 0.5)
