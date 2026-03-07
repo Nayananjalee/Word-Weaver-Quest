@@ -811,6 +811,7 @@ async def get_story(request: StoryRequest):
         full_story_text = " ".join([s['text'] for s in story_data.get('story_sentences', [])])
         
         story_insert_res = supabase.table('stories').insert({
+            'user_id': request.user_id,
             'story_text': full_story_text,
             'question': 'ඔබට ඇහුණු වචනය කුමක්ද?', 
             'options': [],    # Options are handled per sentence in the JSON response
@@ -991,7 +992,7 @@ def health_check():
         result = supabase.table('profiles').select('id').limit(1).execute()
         health_status["services"]["database"] = {
             "status": "available",
-            "message": "SQLite database OK"
+            "message": "Neon PostgreSQL database OK"
         }
     except Exception as e:
         health_status["services"]["database"] = {
