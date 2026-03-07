@@ -109,6 +109,7 @@ RUNNING THE APPLICATION
 import os
 import json
 import time
+import random
 import requests
 import base64
 from datetime import datetime
@@ -710,6 +711,90 @@ def generate_audio_with_gtts(text: str) -> bytes:
 # ======================================
 
 # --------------------------------------
+# SMART WORD SELECTION ALGORITHM
+# --------------------------------------
+
+def select_words_for_story(user_id: str, all_words: list, max_words: int = 5) -> list:
+    """
+    Research-backed word selection for story generation.
+    
+    From a pool of difficult words, selects an optimal subset (default 5) for
+    the next story, balancing:
+      1. Spaced Repetition priority (SM-2 due words first)
+      2. Leitner box distribution (more Box 1-2 words, fewer Box 4-5)
+      3. Low-accuracy words get higher priority
+      4. Unseen words introduced gradually (max 2 new per session)
+      5. Random tie-breaking to avoid repetitive stories
+    
+    Research basis:
+      - Settles & Meeder (2016): Trainable Spaced Repetition
+      - Nakata & Elgort (2021): Optimal SRS for Vocabulary Acquisition
+      - Kang (2020): SRS adaptations for learning disabilities
+      - Leitner (1972): Learning box system for graduated exposure
+    """
+    if len(all_words) <= max_words:
+        return all_words
+    
+    try:
+        engine = _get_or_create_srs(user_id)
+    except Exception:
+        engine = None
+    
+    scored_words = []
+    unseen_words = []
+    
+    for word in all_words:
+        if engine and word in engine.cards:
+            card = engine.cards[word]
+            accuracy = (card.correct_reviews / card.total_reviews) if card.total_reviews > 0 else 0.5
+            
+            # Priority score: lower = pick first
+            # Due words (overdue interval) get massive priority boost
+            days_overdue = 0
+            if hasattr(card, 'next_review') and card.next_review:
+                days_overdue = max(0, (time.time() - card.next_review) / 86400)
+            
+            # Leitner box weight: Box 1 words need most practice
+            box_weight = {1: 5.0, 2: 3.0, 3: 2.0, 4: 1.0, 5: 0.5}.get(card.leitner_box, 3.0)
+            
+            # Low accuracy = higher priority (inverted)
+            accuracy_weight = (1.0 - accuracy) * 4.0
+            
+            # Overdue boost
+            overdue_weight = min(days_overdue * 2.0, 10.0)
+            
+            # Small random jitter to avoid always picking same words
+            jitter = random.uniform(0, 1.0)
+            
+            priority = box_weight + accuracy_weight + overdue_weight + jitter
+            scored_words.append((word, priority))
+        else:
+            # Unseen word - introduce gradually
+            unseen_words.append(word)
+    
+    # Sort practiced words by priority (highest first)
+    scored_words.sort(key=lambda x: x[1], reverse=True)
+    
+    # Pick top practiced words, leaving room for new words
+    max_new = min(2, max_words // 3, len(unseen_words))  # At most 2 new words per story
+    max_practiced = max_words - max_new
+    
+    selected = [w for w, _ in scored_words[:max_practiced]]
+    
+    # Add new unseen words (random sampling for variety)
+    if unseen_words and max_new > 0:
+        new_picks = random.sample(unseen_words, min(max_new, len(unseen_words)))
+        selected.extend(new_picks)
+    
+    # If we still have room, fill with more practiced words
+    if len(selected) < max_words and len(scored_words) > max_practiced:
+        extras = [w for w, _ in scored_words[max_practiced:max_words]]
+        selected.extend(extras)
+    
+    return selected[:max_words]
+
+
+# --------------------------------------
 # CORE STORY GENERATION
 # --------------------------------------
 
@@ -755,10 +840,21 @@ async def get_story(request: StoryRequest):
             difficult_words = ["හාවා", "ඉබ්බා", "කෑම"]  # Simple animal/food words
         else:
             # Use child's personalized target words
-            difficult_words = profile_res.data[0].get('difficult_words', [])
+            raw_words = profile_res.data[0].get('difficult_words', [])
+            # Handle case where difficult_words was stored as string
+            if isinstance(raw_words, str):
+                try:
+                    raw_words = json.loads(raw_words) if raw_words else []
+                except (json.JSONDecodeError, TypeError):
+                    raw_words = []
+            difficult_words = raw_words if raw_words else []
             if not difficult_words:
                 # Default harder words if profile exists but no words set
                 difficult_words = ["පුස්තකාලය", "ආහාර", "විශ්වාසය"]
+
+        # ===== Smart Word Selection =====
+        # When child has many words, pick optimal subset for this story
+        difficult_words = select_words_for_story(request.user_id, difficult_words)
 
         # Convert word list to comma-separated string
         keywords = ", ".join(difficult_words)
@@ -861,7 +957,7 @@ def get_profile(user_id: str, username: str = None):
             'username': display_name,
             'score': 0,
             'learning_level': 1,
-            'difficult_words': '[]'
+            'difficult_words': []
         }).execute()
         return {"id": user_id, "username": display_name, "score": 0, "learning_level": 1}
     except Exception as e:
@@ -872,7 +968,7 @@ def get_profile(user_id: str, username: str = None):
                 'username': display_name,
                 'score': 0,
                 'learning_level': 1,
-                'difficult_words': '[]'
+                'difficult_words': []
             }).execute()
             return {"id": user_id, "username": display_name, "score": 0, "learning_level": 1}
         except Exception:
@@ -911,7 +1007,9 @@ class WordManageRequest(BaseModel):
 
 @app.get("/words/{user_id}")
 def get_words(user_id: str):
-    """Get user's difficult words list and per-word performance stats."""
+    """Get user's difficult words list and per-word performance stats.
+    Returns stats for ALL words the child has practiced (from SRS engine),
+    plus the therapist's difficult_words list."""
     try:
         profile_res = supabase.table('profiles').select('difficult_words').eq('id', user_id).single().execute()
         words = []
@@ -923,11 +1021,16 @@ def get_words(user_id: str):
             else:
                 words = raw or []
 
-        # Gather per-word SRS stats if available
+        # Gather per-word SRS stats for ALL practiced words
         word_stats = {}
+        all_practiced_words = []
         try:
             engine = _get_or_create_srs(user_id)
-            for w in words:
+            # Include ALL words from SRS engine (practiced words)
+            all_practiced_words = list(engine.cards.keys())
+            all_words_set = set(words) | set(all_practiced_words)
+            
+            for w in all_words_set:
                 if w in engine.cards:
                     card = engine.cards[w]
                     word_stats[w] = {
@@ -937,16 +1040,17 @@ def get_words(user_id: str):
                         "easiness": round(card.easiness, 2),
                         "interval_days": card.interval,
                         "leitner_box": card.leitner_box,
+                        "in_difficult_list": w in words,
                     }
                 else:
-                    word_stats[w] = {"attempts": 0, "correct": 0, "accuracy": 0, "easiness": 2.5, "interval_days": 0, "leitner_box": 1}
+                    word_stats[w] = {"attempts": 0, "correct": 0, "accuracy": 0, "easiness": 2.5, "interval_days": 0, "leitner_box": 1, "in_difficult_list": w in words}
         except Exception:
             pass
 
-        return {"words": words, "word_stats": word_stats}
+        return {"words": words, "word_stats": word_stats, "practiced_words": all_practiced_words}
     except Exception as e:
         print(f"Get words error: {e}")
-        return {"words": [], "word_stats": {}}
+        return {"words": [], "word_stats": {}, "practiced_words": []}
 
 @app.post("/words/add")
 def add_word(request: WordManageRequest):
@@ -2732,45 +2836,73 @@ async def complete_session(request: SessionReportRequest):
 @app.get("/session/metrics/{user_id}")
 async def get_session_metrics(user_id: str):
     """
-    Get real-time session metrics for current active session.
-    
-    Returns research-grade metrics during active gameplay.
+    Get session metrics - real-time if active session exists,
+    otherwise falls back to last completed session from database.
     """
     try:
-        if user_id not in user_session_analytics:
+        # Try active in-memory session first
+        if user_id in user_session_analytics:
+            engine = user_session_analytics[user_id]
+            answers = engine.answers
+            eng_list = list(engine.engagement_scores)
+            
+            correct = sum(1 for a in answers if a['correct'])
+            total = len(answers)
+            total_time = sum(a.get('response_time', 0) for a in answers)
+            accuracy = correct / total if total > 0 else 0
+            
             return {
-                "error": "No active session",
-                "user_id": user_id
+                "user_id": user_id,
+                "session_id": engine.session_id,
+                "duration_minutes": round((time.time() - engine.session_start) / 60, 2),
+                "source": "active",
+                "metrics": {
+                    "total_answered": total,
+                    "accuracy": round(accuracy, 3),
+                    "learning_efficiency": performance_calculator.calculate_learning_efficiency(
+                        correct, total, total_time
+                    ),
+                    "engagement_consistency": performance_calculator.calculate_engagement_consistency(eng_list),
+                    "flow_ratio": performance_calculator.calculate_flow_ratio(eng_list),
+                    "zpd_alignment": performance_calculator.calculate_zpd_alignment(accuracy),
+                    "resilience": performance_calculator.calculate_resilience_score(answers),
+                    "current_streak": engine.current_streak,
+                    "best_streak": engine.best_streak,
+                    "frustration_episodes": engine.frustration_count,
+                    "boredom_episodes": engine.boredom_count
+                }
             }
         
-        engine = user_session_analytics[user_id]
-        answers = engine.answers
-        eng_list = list(engine.engagement_scores)
+        # Fallback: load last completed session from database
+        last_session_res = supabase.table('session_analytics').select('*').eq('user_id', user_id).order('timestamp', desc=True).limit(1).execute()
         
-        correct = sum(1 for a in answers if a['correct'])
-        total = len(answers)
-        total_time = sum(a.get('response_time', 0) for a in answers)
-        accuracy = correct / total if total > 0 else 0
+        if last_session_res.data and last_session_res.data[0]:
+            row = last_session_res.data[0]
+            summary = row.get('summary', {})
+            research = row.get('research_metrics', {})
+            
+            return {
+                "user_id": user_id,
+                "session_id": row.get('session_id', ''),
+                "source": "history",
+                "metrics": {
+                    "total_answered": summary.get('total_questions', 0),
+                    "accuracy": summary.get('accuracy_rate', 0),
+                    "learning_efficiency": research.get('learning_efficiency_index', 0),
+                    "engagement_consistency": research.get('engagement_consistency', 0),
+                    "flow_ratio": research.get('flow_state_ratio', 0),
+                    "zpd_alignment": research.get('zpd_alignment', 0),
+                    "resilience": research.get('resilience_score', 0),
+                    "current_streak": summary.get('best_streak', 0),
+                    "best_streak": summary.get('best_streak', 0),
+                    "frustration_episodes": summary.get('frustration_episodes', 0),
+                    "boredom_episodes": summary.get('boredom_episodes', 0)
+                }
+            }
         
         return {
-            "user_id": user_id,
-            "session_id": engine.session_id,
-            "duration_minutes": round((time.time() - engine.session_start) / 60, 2),
-            "metrics": {
-                "total_answered": total,
-                "accuracy": round(accuracy, 3),
-                "learning_efficiency": performance_calculator.calculate_learning_efficiency(
-                    correct, total, total_time
-                ),
-                "engagement_consistency": performance_calculator.calculate_engagement_consistency(eng_list),
-                "flow_ratio": performance_calculator.calculate_flow_ratio(eng_list),
-                "zpd_alignment": performance_calculator.calculate_zpd_alignment(accuracy),
-                "resilience": performance_calculator.calculate_resilience_score(answers),
-                "current_streak": engine.current_streak,
-                "best_streak": engine.best_streak,
-                "frustration_episodes": engine.frustration_count,
-                "boredom_episodes": engine.boredom_count
-            }
+            "error": "No session data yet",
+            "user_id": user_id
         }
     except Exception as e:
         print(f"Metrics retrieval error: {e}")
