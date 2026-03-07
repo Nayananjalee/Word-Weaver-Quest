@@ -322,6 +322,7 @@ class PerformanceUpdate(BaseModel):
     is_correct: bool  # Did they get it right?
     response_time: float  # How long did it take (seconds)
     engagement_score: Optional[float] = None  # Optional engagement signal
+    word: Optional[str] = None  # Target word being tested
 
 # Difficulty Recommendation Request (Feature 1)
 class DifficultyRequest(BaseModel):
@@ -746,13 +747,13 @@ def select_words_for_story(user_id: str, all_words: list, max_words: int = 5) ->
     for word in all_words:
         if engine and word in engine.cards:
             card = engine.cards[word]
-            accuracy = (card.correct_reviews / card.total_reviews) if card.total_reviews > 0 else 0.5
+            accuracy = (card.correct_attempts / card.total_attempts) if card.total_attempts > 0 else 0.5
             
             # Priority score: lower = pick first
             # Due words (overdue interval) get massive priority boost
             days_overdue = 0
-            if hasattr(card, 'next_review') and card.next_review:
-                days_overdue = max(0, (time.time() - card.next_review) / 86400)
+            if card.next_review_at and card.next_review_at > 0:
+                days_overdue = max(0, (time.time() - card.next_review_at) / 86400)
             
             # Leitner box weight: Box 1 words need most practice
             box_weight = {1: 5.0, 2: 3.0, 3: 2.0, 4: 1.0, 5: 0.5}.get(card.leitner_box, 3.0)
@@ -911,7 +912,8 @@ async def get_story(request: StoryRequest):
             'story_text': full_story_text,
             'question': 'ඔබට ඇහුණු වචනය කුමක්ද?', 
             'options': [],    # Options are handled per sentence in the JSON response
-            'correct_answer': '' 
+            'correct_answer': '',
+            'target_words': difficult_words  # Store which words were used in this story
         }).execute()
 
         # Get the inserted story record
@@ -1034,11 +1036,11 @@ def get_words(user_id: str):
                 if w in engine.cards:
                     card = engine.cards[w]
                     word_stats[w] = {
-                        "attempts": card.total_reviews,
-                        "correct": card.correct_reviews,
-                        "accuracy": round(card.correct_reviews / card.total_reviews * 100, 1) if card.total_reviews > 0 else 0,
-                        "easiness": round(card.easiness, 2),
-                        "interval_days": card.interval,
+                        "attempts": card.total_attempts,
+                        "correct": card.correct_attempts,
+                        "accuracy": round(card.correct_attempts / card.total_attempts * 100, 1) if card.total_attempts > 0 else 0,
+                        "easiness": round(card.easiness_factor, 2),
+                        "interval_days": card.interval_days,
                         "leitner_box": card.leitner_box,
                         "in_difficult_list": w in words,
                     }
@@ -1104,6 +1106,155 @@ def remove_word(request: WordManageRequest):
     except Exception as e:
         print(f"Remove word error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/words/progress/{user_id}")
+def get_word_progress(user_id: str):
+    """
+    Detailed per-word progress report for therapist/parent.
+    
+    Returns for each word:
+      - mastery_level: 'mastered' | 'familiar' | 'learning' | 'struggling' | 'new'
+      - accuracy, attempts, correct count
+      - learning_trend: 'improving' | 'stable' | 'declining'
+      - recommendation: 'ready_to_remove' | 'keep_practicing' | 'needs_attention'
+      - recent_accuracy: accuracy over last 5 attempts
+      - first_seen / last_seen timestamps
+    
+    Research basis:
+      - Leitner (1972): Box-based mastery classification
+      - Ebbinghaus (1885): Forgetting curve → retention strength
+      - Nation (2001): Vocabulary acquisition thresholds (>80% accuracy + 5+ encounters)
+    """
+    try:
+        # Get therapist word list
+        profile_res = supabase.table('profiles').select('difficult_words, srs_state').eq('id', user_id).single().execute()
+        therapist_words = []
+        if profile_res.data:
+            raw = profile_res.data.get('difficult_words', [])
+            if isinstance(raw, str):
+                therapist_words = json.loads(raw) if raw else []
+            else:
+                therapist_words = raw or []
+        
+        # Load SRS engine for detailed card data
+        engine = _get_or_create_srs(user_id)
+        
+        # Get recent performance logs per word
+        perf_logs = supabase.table('performance_logs').select('word, is_correct, created_at').eq('user_id', user_id).order('created_at', desc=True).limit(500).execute()
+        
+        # Build per-word recent history from performance_logs
+        word_history = {}
+        for log in (perf_logs.data or []):
+            w = log.get('word')
+            if not w:
+                continue
+            if w not in word_history:
+                word_history[w] = []
+            word_history[w].append(log.get('is_correct', False))
+        
+        # Get word_mastery table data
+        mastery_data = supabase.table('word_mastery').select('*').eq('user_id', user_id).execute()
+        mastery_map = {m['word']: m for m in (mastery_data.data or [])}
+        
+        # Build progress for all known words
+        all_words = set(therapist_words) | set(engine.cards.keys())
+        word_progress = {}
+        
+        for w in all_words:
+            card = engine.cards.get(w)
+            mastery = mastery_map.get(w, {})
+            history = word_history.get(w, [])
+            
+            if card:
+                attempts = card.total_attempts
+                correct = card.correct_attempts
+                accuracy = round(correct / attempts * 100, 1) if attempts > 0 else 0
+                leitner_box = card.leitner_box
+                easiness = round(card.easiness_factor, 2)
+                interval = card.interval_days
+                
+                # Mastery level from Leitner box
+                mastery_level = {1: 'struggling', 2: 'learning', 3: 'learning', 4: 'familiar', 5: 'mastered'}.get(leitner_box, 'new')
+                if attempts == 0:
+                    mastery_level = 'new'
+                
+                # Recent accuracy (last 5 attempts from performance_logs)
+                recent = history[:5]
+                recent_accuracy = round(sum(1 for r in recent if r) / len(recent) * 100, 1) if recent else accuracy
+                
+                # Learning trend: compare recent vs overall
+                if len(history) >= 5:
+                    recent_5 = sum(1 for r in history[:5] if r) / 5
+                    older_5 = sum(1 for r in history[5:10] if r) / max(1, min(5, len(history[5:10])))
+                    if recent_5 - older_5 > 0.15:
+                        trend = 'improving'
+                    elif older_5 - recent_5 > 0.15:
+                        trend = 'declining'
+                    else:
+                        trend = 'stable'
+                else:
+                    trend = 'stable'
+                
+                # Recommendation (Nation, 2001: word known after >80% acc + 5+ encounters)
+                if accuracy >= 80 and attempts >= 5 and leitner_box >= 4:
+                    recommendation = 'ready_to_remove'
+                elif accuracy < 50 and attempts >= 3:
+                    recommendation = 'needs_attention'
+                else:
+                    recommendation = 'keep_practicing'
+                
+            else:
+                attempts = mastery.get('attempts', 0)
+                correct = mastery.get('correct', 0)
+                accuracy = round(correct / attempts * 100, 1) if attempts > 0 else 0
+                leitner_box = 1
+                easiness = 2.5
+                interval = 0
+                mastery_level = 'new'
+                recent_accuracy = 0
+                trend = 'stable'
+                recommendation = 'keep_practicing'
+            
+            word_progress[w] = {
+                'word': w,
+                'in_therapist_list': w in therapist_words,
+                'mastery_level': mastery_level,
+                'accuracy': accuracy,
+                'recent_accuracy': recent_accuracy,
+                'attempts': attempts,
+                'correct': correct,
+                'leitner_box': leitner_box,
+                'easiness': easiness,
+                'interval_days': interval,
+                'trend': trend,
+                'recommendation': recommendation,
+                'last_seen': mastery.get('last_seen_at'),
+            }
+        
+        # Summary stats
+        total = len(word_progress)
+        mastered_count = sum(1 for p in word_progress.values() if p['mastery_level'] == 'mastered')
+        struggling_count = sum(1 for p in word_progress.values() if p['mastery_level'] == 'struggling')
+        ready_to_remove = [w for w, p in word_progress.items() if p['recommendation'] == 'ready_to_remove']
+        needs_attention = [w for w, p in word_progress.items() if p['recommendation'] == 'needs_attention']
+        
+        return {
+            'word_progress': word_progress,
+            'summary': {
+                'total_words': total,
+                'mastered': mastered_count,
+                'struggling': struggling_count,
+                'ready_to_remove': ready_to_remove,
+                'needs_attention': needs_attention,
+                'overall_accuracy': round(
+                    sum(p['accuracy'] for p in word_progress.values()) / max(1, total), 1
+                )
+            }
+        }
+    except Exception as e:
+        print(f"Word progress error: {e}")
+        return {'word_progress': {}, 'summary': {'total_words': 0, 'mastered': 0, 'struggling': 0, 'ready_to_remove': [], 'needs_attention': [], 'overall_accuracy': 0}}
 
 
 # --------------------------------------
@@ -1420,14 +1571,17 @@ async def update_performance(request: PerformanceUpdate):
         }).eq('id', request.user_id).execute()
         
         # Log performance to database for analytics
-        supabase.table('performance_logs').insert({
+        log_data = {
             'user_id': request.user_id,
             'story_id': request.story_id,
             'is_correct': request.is_correct,
             'response_time': request.response_time,
             'engagement_score': request.engagement_score,
             'difficulty_level': engine.current_level_id
-        }).execute()
+        }
+        if request.word:
+            log_data['word'] = request.word
+        supabase.table('performance_logs').insert(log_data).execute()
         
         return {
             "success": True,
@@ -3080,9 +3234,9 @@ async def srs_review_word(request: SRSReviewRequest):
                 supabase.table('word_mastery').upsert({
                     'user_id': request.user_id,
                     'word': request.word,
-                    'mastery_score': round(card.easiness * 100, 1),
-                    'attempts': card.total_reviews,
-                    'correct': card.correct_reviews,
+                    'mastery_score': round(card.easiness_factor * 100, 1),
+                    'attempts': card.total_attempts,
+                    'correct': card.correct_attempts,
                     'last_seen_at': datetime.now().isoformat()
                 }, on_conflict='user_id,word').execute()
         except Exception as wm_err:
