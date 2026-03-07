@@ -86,8 +86,8 @@ const ParentTherapistDashboard = ({ userId }) => {
 
   // Section renderer for structured report data
   const ReportSection = ({ title, icon, children, color = 'blue' }) => (
-    <div className={`bg-white/10 backdrop-blur rounded-2xl p-4 border border-${color}-400/20 mb-4`}>
-      <h3 className={`text-lg font-bold text-${color}-300 mb-3 flex items-center gap-2`}>
+    <div className={`bg-white rounded-2xl p-4 border-2 border-${color}-200 mb-4 shadow-md`}>
+      <h3 className={`text-lg font-bold text-${color}-700 mb-3 flex items-center gap-2`}>
         <span>{icon}</span> {title}
       </h3>
       {children}
@@ -96,9 +96,9 @@ const ParentTherapistDashboard = ({ userId }) => {
 
   // Metric display
   const MetricRow = ({ label, value, unit = '', highlight = false }) => (
-    <div className={`flex justify-between items-center py-1.5 px-3 rounded-lg ${highlight ? 'bg-white/10' : ''}`}>
-      <span className="text-white/80 text-sm">{label}</span>
-      <span className={`font-bold text-sm ${highlight ? 'text-yellow-300' : 'text-white'}`}>
+    <div className={`flex justify-between items-center py-1.5 px-3 rounded-lg ${highlight ? 'bg-gray-50' : ''}`}>
+      <span className="text-gray-600 text-sm">{label}</span>
+      <span className={`font-bold text-sm ${highlight ? 'text-gray-900' : 'text-gray-800'}`}>
         {value}{unit}
       </span>
     </div>
@@ -108,15 +108,15 @@ const ParentTherapistDashboard = ({ userId }) => {
   const renderTherapistReport = (data) => (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-blue-500/20 backdrop-blur rounded-2xl p-6 border border-blue-400/30 text-center">
-        <h2 className="text-xl font-bold text-white mb-1">Clinical Report</h2>
-        <p className="text-blue-200 text-sm">Word-Weaver-Quest Speech Therapy Platform</p>
+      <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200 text-center shadow-md">
+        <h2 className="text-xl font-bold text-gray-800 mb-1">Clinical Report</h2>
+        <p className="text-blue-600 text-sm">Word-Weaver-Quest Speech Therapy Platform</p>
         {data.patient_profile && (
-          <p className="text-white/60 text-xs mt-2">
+          <p className="text-gray-500 text-xs mt-2">
             Patient: {data.patient_profile.name || 'N/A'} | Age: {data.patient_profile.age || 'N/A'}
           </p>
         )}
-        <p className="text-white/60 text-xs">Report Period: {data.report_period || 'Last 30 days'}</p>
+        <p className="text-gray-500 text-xs">Report Period: {data.report_period || 'Last 30 days'}</p>
       </div>
 
       {/* Session Overview */}
@@ -128,7 +128,7 @@ const ParentTherapistDashboard = ({ userId }) => {
           <MetricRow label="Sessions/Week" value={data.session_overview.sessions_per_week ?? 0} />
           <MetricRow label="Recommended" value={data.session_overview.recommended_sessions_per_week || '4-5/week'} />
           {data.session_overview.accuracy_interpretation && (
-            <p className="text-white/60 text-xs px-3 mt-2 italic">{data.session_overview.accuracy_interpretation}</p>
+            <p className="text-gray-500 text-xs px-3 mt-2 italic">{data.session_overview.accuracy_interpretation}</p>
           )}
         </ReportSection>
       )}
@@ -149,16 +149,16 @@ const ParentTherapistDashboard = ({ userId }) => {
           <MetricRow label="Phoneme Pairs Tracked" value={data.phoneme_analysis.total_phoneme_pairs_tracked ?? 0} />
           {data.phoneme_analysis.most_confused_pairs?.length > 0 && (
             <div className="mt-2 space-y-1">
-              <p className="text-white/70 text-xs px-3">Most Confused Pairs:</p>
+              <p className="text-gray-500 text-xs px-3">Most Confused Pairs:</p>
               {data.phoneme_analysis.most_confused_pairs.map((pair, i) => (
-                <div key={i} className="flex justify-between bg-white/5 rounded-lg px-3 py-1.5">
-                  <span className="text-white text-sm">{typeof pair === 'string' ? pair : JSON.stringify(pair)}</span>
+                <div key={i} className="flex justify-between bg-gray-50 rounded-lg px-3 py-1.5">
+                  <span className="text-gray-800 text-sm">{typeof pair === 'string' ? pair : JSON.stringify(pair)}</span>
                 </div>
               ))}
             </div>
           )}
           {data.phoneme_analysis.clinical_notes && (
-            <p className="text-white/60 text-xs px-3 mt-2 italic">{data.phoneme_analysis.clinical_notes}</p>
+            <p className="text-gray-500 text-xs px-3 mt-2 italic">{data.phoneme_analysis.clinical_notes}</p>
           )}
         </ReportSection>
       )}
@@ -182,7 +182,7 @@ const ParentTherapistDashboard = ({ userId }) => {
           <MetricRow label="Germane Load" value={data.cognitive_load_analysis.average_germane_load ?? 0} />
           <MetricRow label="Optimal Zone Time" value={data.cognitive_load_analysis.optimal_zone_time || '0%'} />
           {data.cognitive_load_analysis.cognitive_load_interpretation && (
-            <p className="text-white/60 text-xs px-3 mt-2 italic">{data.cognitive_load_analysis.cognitive_load_interpretation}</p>
+            <p className="text-gray-500 text-xs px-3 mt-2 italic">{data.cognitive_load_analysis.cognitive_load_interpretation}</p>
           )}
         </ReportSection>
       )}
@@ -201,20 +201,20 @@ const ParentTherapistDashboard = ({ userId }) => {
       {data.iep_goals && data.iep_goals.length > 0 && (
         <ReportSection title="IEP Goals" icon="🎯" color="green">
           {data.iep_goals.map((goal, i) => (
-            <div key={i} className="bg-white/5 rounded-xl p-3 mb-2">
+            <div key={i} className="bg-gray-50 rounded-xl p-3 mb-2">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-green-300 font-bold text-sm">{goal.area || `Goal ${i + 1}`}</span>
+                <span className="text-green-700 font-bold text-sm">{goal.area || `Goal ${i + 1}`}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  goal.status === 'on_track' ? 'bg-green-500/30 text-green-300' :
-                  goal.status === 'needs_attention' ? 'bg-yellow-500/30 text-yellow-300' :
-                  'bg-red-500/30 text-red-300'
+                  goal.status === 'on_track' ? 'bg-green-100 text-green-700' :
+                  goal.status === 'needs_attention' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-red-100 text-red-700'
                 }`}>{(goal.status || 'pending').replace(/_/g, ' ')}</span>
               </div>
-              <div className="text-xs text-white/70 space-y-0.5">
-                <p><span className="text-white/50">Current:</span> {goal.current_level || 'N/A'}</p>
-                <p><span className="text-white/50">Target:</span> {goal.target || 'N/A'}</p>
-                <p><span className="text-white/50">Timeline:</span> {goal.timeline || 'N/A'}</p>
-                <p><span className="text-white/50">Measure:</span> {goal.measurement || 'N/A'}</p>
+              <div className="text-xs text-gray-600 space-y-0.5">
+                <p><span className="text-gray-400">Current:</span> {goal.current_level || 'N/A'}</p>
+                <p><span className="text-gray-400">Target:</span> {goal.target || 'N/A'}</p>
+                <p><span className="text-gray-400">Timeline:</span> {goal.timeline || 'N/A'}</p>
+                <p><span className="text-gray-400">Measure:</span> {goal.measurement || 'N/A'}</p>
               </div>
             </div>
           ))}
@@ -225,17 +225,17 @@ const ParentTherapistDashboard = ({ userId }) => {
       {data.clinical_recommendations && data.clinical_recommendations.length > 0 && (
         <ReportSection title="Clinical Recommendations" icon="💡" color="orange">
           {data.clinical_recommendations.map((rec, i) => (
-            <div key={i} className="flex gap-2 items-start bg-white/5 rounded-lg p-2 mb-1">
+            <div key={i} className="flex gap-2 items-start bg-gray-50 rounded-lg p-2 mb-1">
               <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                rec.priority === 'high' ? 'bg-red-500/30 text-red-300' :
-                rec.priority === 'medium' ? 'bg-yellow-500/30 text-yellow-300' :
-                'bg-blue-500/30 text-blue-300'
+                rec.priority === 'high' ? 'bg-red-100 text-red-700' :
+                rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-blue-100 text-blue-700'
               }`}>{rec.priority || '—'}</span>
               <div>
-                <p className="text-white/90 text-sm font-semibold">{rec.area || ''}</p>
-                <p className="text-white/70 text-xs">{rec.recommendation_en || String(rec)}</p>
+                <p className="text-gray-800 text-sm font-semibold">{rec.area || ''}</p>
+                <p className="text-gray-600 text-xs">{rec.recommendation_en || String(rec)}</p>
                 {rec.recommendation_si && language === 'sinhala' && (
-                  <p className="text-white/50 text-xs mt-0.5">{rec.recommendation_si}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">{rec.recommendation_si}</p>
                 )}
               </div>
             </div>
@@ -258,50 +258,50 @@ const ParentTherapistDashboard = ({ userId }) => {
     return (
     <div className="space-y-4">
       {/* Friendly Header */}
-      <div className="bg-green-500/20 backdrop-blur rounded-3xl p-6 border border-green-400/30 text-center">
+      <div className="bg-green-50 rounded-3xl p-6 border-2 border-green-200 text-center shadow-md">
         <div className="text-4xl mb-2">🌟</div>
-        <h2 className="text-xl font-bold text-white mb-1">
+        <h2 className="text-xl font-bold text-gray-800 mb-1">
           {language === 'sinhala' ? 'ඔබේ දරුවාගේ ප්‍රගතිය' : `${summary.child_name || 'Your Child'}'s Progress`}
         </h2>
-        <p className="text-green-200 text-sm">
+        <p className="text-green-600 text-sm">
           {language === 'sinhala' ? 'වචන-වියන්නා ඉගෙනුම් වාර්තාව' : 'Word-Weaver-Quest Learning Report'}
         </p>
-        <p className="text-white/50 text-xs mt-1">{summary.period || 'Last 30 days'}</p>
+        <p className="text-gray-400 text-xs mt-1">{summary.period || 'Last 30 days'}</p>
       </div>
 
       {/* Celebration message */}
       {(progress.celebration_en || progress.celebration_si) && (
-        <div className="bg-yellow-500/20 backdrop-blur rounded-2xl p-4 border border-yellow-400/30 text-center">
+        <div className="bg-yellow-50 rounded-2xl p-4 border-2 border-yellow-200 text-center shadow-md">
           <div className="text-3xl mb-2">🎉</div>
-          <p className="text-white font-semibold">
+          <p className="text-gray-800 font-semibold">
             {language === 'sinhala' ? (progress.celebration_si || progress.celebration_en) : (progress.celebration_en || progress.celebration_si)}
           </p>
         </div>
       )}
 
       {/* Simple Progress */}
-      <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-        <h3 className="text-white font-bold mb-3">📈 {language === 'sinhala' ? 'ප්‍රගති සාරාංශය' : 'Progress Summary'}</h3>
+      <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+        <h3 className="text-gray-800 font-bold mb-3">📈 {language === 'sinhala' ? 'ප්‍රගති සාරාංශය' : 'Progress Summary'}</h3>
         <div className="space-y-3">
-          <div className="flex justify-between text-white text-sm">
+          <div className="flex justify-between text-gray-700 text-sm">
             <span>{language === 'sinhala' ? 'සම්පූර්ණ කළ පාඩම්' : 'Sessions Completed'}</span>
             <span className="font-bold">{summary.sessions_completed ?? 0}</span>
           </div>
-          <div className="flex justify-between text-white text-sm">
+          <div className="flex justify-between text-gray-700 text-sm">
             <span>{language === 'sinhala' ? 'ඉගෙන ගත් වචන' : 'Words Practiced'}</span>
-            <span className="font-bold text-green-300">{summary.words_practiced ?? 0}</span>
+            <span className="font-bold text-green-600">{summary.words_practiced ?? 0}</span>
           </div>
-          <div className="flex justify-between text-white text-sm">
+          <div className="flex justify-between text-gray-700 text-sm">
             <span>{language === 'sinhala' ? 'ශ්‍රේණිය' : 'Accuracy Stars'}</span>
-            <span className="font-bold text-yellow-300">{'⭐'.repeat(Math.max(0, summary.accuracy_stars ?? 1))}</span>
+            <span className="font-bold text-yellow-500">{'⭐'.repeat(Math.max(0, summary.accuracy_stars ?? 1))}</span>
           </div>
           {progress.accuracy_percentage !== undefined && (
             <div>
-              <div className="flex justify-between text-white text-sm mb-1">
+              <div className="flex justify-between text-gray-700 text-sm mb-1">
                 <span>{language === 'sinhala' ? 'නිවැරදි අනුපාතය' : 'Accuracy Rate'}</span>
-                <span className="font-bold text-yellow-300">{Math.round(progress.accuracy_percentage)}%</span>
+                <span className="font-bold text-indigo-600">{Math.round(progress.accuracy_percentage)}%</span>
               </div>
-              <div className="w-full bg-gray-600 rounded-full h-3">
+              <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className="bg-gradient-to-r from-green-400 to-yellow-400 h-3 rounded-full"
                   style={{ width: `${Math.min(100, progress.accuracy_percentage)}%` }}
@@ -310,13 +310,13 @@ const ParentTherapistDashboard = ({ userId }) => {
             </div>
           )}
           {progress.words_mastered !== undefined && (
-            <div className="flex justify-between text-white text-sm">
+            <div className="flex justify-between text-gray-700 text-sm">
               <span>{language === 'sinhala' ? 'ප්‍රගුණ කළ වචන' : 'Words Mastered'}</span>
               <span className="font-bold">{progress.words_mastered}</span>
             </div>
           )}
           {progress.engagement_level && (
-            <div className="flex justify-between text-white text-sm">
+            <div className="flex justify-between text-gray-700 text-sm">
               <span>{language === 'sinhala' ? 'නිරත මට්ටම' : 'Engagement Level'}</span>
               <span className="font-bold">{progress.engagement_level}</span>
             </div>
@@ -326,9 +326,9 @@ const ParentTherapistDashboard = ({ userId }) => {
 
       {/* Message from system */}
       {(summary.message_en || summary.message_si) && (
-        <div className="bg-pink-500/20 backdrop-blur rounded-2xl p-4 border border-pink-400/30">
+        <div className="bg-pink-50 rounded-2xl p-4 border-2 border-pink-200 shadow-md">
           <div className="text-2xl mb-2 text-center">💪</div>
-          <p className="text-white text-sm text-center">
+          <p className="text-gray-800 text-sm text-center font-semibold">
             {language === 'sinhala' ? (summary.message_si || summary.message_en) : (summary.message_en || summary.message_si)}
           </p>
         </div>
@@ -336,12 +336,12 @@ const ParentTherapistDashboard = ({ userId }) => {
 
       {/* Improvement areas */}
       {(progress.improvement_areas_en?.length > 0 || progress.improvement_areas_si?.length > 0) && (
-        <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-          <h3 className="text-white font-bold mb-3">💡 {language === 'sinhala' ? 'වැඩිදියුණු කළ හැකි ක්ෂේත්‍ර' : 'Areas to Improve'}</h3>
+        <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+          <h3 className="text-gray-800 font-bold mb-3">💡 {language === 'sinhala' ? 'වැඩිදියුණු කළ හැකි ක්ෂේත්‍ර' : 'Areas to Improve'}</h3>
           {(language === 'sinhala' ? (progress.improvement_areas_si || progress.improvement_areas_en) : (progress.improvement_areas_en || [])).map((area, i) => (
             <div key={i} className="flex gap-2 items-start mb-2">
-              <span className="text-yellow-400">•</span>
-              <span className="text-white/90 text-sm">{area}</span>
+              <span className="text-yellow-500">•</span>
+              <span className="text-gray-700 text-sm">{area}</span>
             </div>
           ))}
         </div>
@@ -349,14 +349,14 @@ const ParentTherapistDashboard = ({ userId }) => {
 
       {/* Tips */}
       {tipsArr.length > 0 && (
-        <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-          <h3 className="text-white font-bold mb-3">
+        <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+          <h3 className="text-gray-800 font-bold mb-3">
             {language === 'sinhala' ? '💡 ගෙදර දී කළ හැකි දේ' : '💡 Things to do at Home'}
           </h3>
           {tipsArr.map((tip, i) => (
             <div key={i} className="flex gap-2 items-start mb-2">
-              <span className="text-green-400 text-lg">✨</span>
-              <span className="text-white/90 text-sm">{tip}</span>
+              <span className="text-green-500 text-lg">✨</span>
+              <span className="text-gray-700 text-sm">{tip}</span>
             </div>
           ))}
         </div>
@@ -369,10 +369,10 @@ const ParentTherapistDashboard = ({ userId }) => {
   const renderResearchReport = (data) => (
     <div className="space-y-4">
       {/* Research Header */}
-      <div className="bg-purple-500/20 backdrop-blur rounded-2xl p-6 border border-purple-400/30">
-        <h2 className="text-xl font-bold text-white mb-1">Research Analysis Report</h2>
-        <p className="text-purple-200 text-sm">Word-Weaver-Quest: AI-Powered Sinhala Speech Therapy</p>
-        <p className="text-white/60 text-xs mt-1">Generated for academic/research purposes</p>
+      <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md">
+        <h2 className="text-xl font-bold text-gray-800 mb-1">Research Analysis Report</h2>
+        <p className="text-purple-600 text-sm">Word-Weaver-Quest: AI-Powered Sinhala Speech Therapy</p>
+        <p className="text-gray-500 text-xs mt-1">Generated for academic/research purposes</p>
       </div>
 
       {/* Descriptive Statistics */}
@@ -393,14 +393,14 @@ const ParentTherapistDashboard = ({ userId }) => {
             const d = typeof val === 'number' ? val : 0;
             const magnitude = Math.abs(d) < 0.2 ? 'Negligible' : Math.abs(d) < 0.5 ? 'Small' : Math.abs(d) < 0.8 ? 'Medium' : 'Large';
             return (
-              <div key={key} className="flex justify-between items-center py-1.5 px-3 rounded-lg bg-white/5 mb-1">
-                <span className="text-white/80 text-sm">{key.replace(/_/g, ' ')}</span>
+              <div key={key} className="flex justify-between items-center py-1.5 px-3 rounded-lg bg-gray-50 mb-1">
+                <span className="text-gray-600 text-sm">{key.replace(/_/g, ' ')}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-white font-mono text-sm">{d.toFixed(3)}</span>
+                  <span className="text-gray-800 font-mono text-sm">{d.toFixed(3)}</span>
                   <span className={`text-xs px-2 py-0.5 rounded ${
-                    magnitude === 'Large' ? 'bg-green-500/30 text-green-300' :
-                    magnitude === 'Medium' ? 'bg-yellow-500/30 text-yellow-300' :
-                    'bg-gray-500/30 text-gray-300'
+                    magnitude === 'Large' ? 'bg-green-100 text-green-700' :
+                    magnitude === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-gray-100 text-gray-600'
                   }`}>{magnitude}</span>
                 </div>
               </div>
@@ -413,8 +413,8 @@ const ParentTherapistDashboard = ({ userId }) => {
       {data.suggested_tests && data.suggested_tests.length > 0 && (
         <ReportSection title="Suggested Statistical Tests" icon="🧪" color="green">
           {data.suggested_tests.map((test, i) => (
-            <div key={i} className="bg-white/5 rounded-lg p-2 mb-1">
-              <span className="text-white text-sm">{test}</span>
+            <div key={i} className="bg-gray-50 rounded-lg p-2 mb-1">
+              <span className="text-gray-800 text-sm">{test}</span>
             </div>
           ))}
         </ReportSection>
@@ -425,17 +425,17 @@ const ParentTherapistDashboard = ({ userId }) => {
         <ReportSection title="Study Variables" icon="🔬" color="orange">
           {data.variables.independent && (
             <div className="mb-2">
-              <p className="text-orange-300 text-xs font-bold mb-1">Independent Variables:</p>
+              <p className="text-orange-700 text-xs font-bold mb-1">Independent Variables:</p>
               {data.variables.independent.map((v, i) => (
-                <span key={i} className="inline-block bg-orange-500/20 text-orange-200 text-xs px-2 py-1 rounded mr-1 mb-1">{v}</span>
+                <span key={i} className="inline-block bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded mr-1 mb-1">{v}</span>
               ))}
             </div>
           )}
           {data.variables.dependent && (
             <div>
-              <p className="text-blue-300 text-xs font-bold mb-1">Dependent Variables:</p>
+              <p className="text-blue-700 text-xs font-bold mb-1">Dependent Variables:</p>
               {data.variables.dependent.map((v, i) => (
-                <span key={i} className="inline-block bg-blue-500/20 text-blue-200 text-xs px-2 py-1 rounded mr-1 mb-1">{v}</span>
+                <span key={i} className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded mr-1 mb-1">{v}</span>
               ))}
             </div>
           )}
@@ -448,8 +448,8 @@ const ParentTherapistDashboard = ({ userId }) => {
     <div className="p-4 space-y-4 max-w-4xl mx-auto">
       {/* Dashboard Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-white mb-1">📋 වාර්තා උත්පාදකය</h2>
-        <p className="text-white/80 text-sm">Clinical Report Generator</p>
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">📋 වාර්තා උත්පාදකය</h2>
+        <p className="text-gray-500 text-sm">Clinical Report Generator</p>
       </div>
 
       {/* Report Type Selector */}
@@ -461,7 +461,7 @@ const ParentTherapistDashboard = ({ userId }) => {
             className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
               reportType === rt.key
                 ? `bg-gradient-to-r from-${rt.color}-400 to-${rt.color}-500 text-white shadow-lg scale-105`
-                : 'bg-white/20 text-white hover:bg-white/30'
+                : 'bg-white text-gray-600 shadow hover:bg-gray-50'
             }`}
           >
             {rt.label}
@@ -470,10 +470,10 @@ const ParentTherapistDashboard = ({ userId }) => {
       </div>
 
       {/* Configuration */}
-      <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
+      <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="text-white/70 text-xs font-bold block mb-1">
+            <label className="text-gray-600 text-xs font-bold block mb-1">
               Child Name / දරුවාගේ නම
             </label>
             <input
@@ -481,28 +481,28 @@ const ParentTherapistDashboard = ({ userId }) => {
               value={childName}
               onChange={e => setChildName(e.target.value)}
               placeholder="Enter name..."
-              className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm placeholder-white/40 focus:outline-none focus:border-white/50"
+              className="w-full px-3 py-2 rounded-xl bg-gray-50 border-2 border-gray-200 text-gray-800 text-sm placeholder-gray-400 focus:outline-none focus:border-indigo-400"
             />
           </div>
           <div>
-            <label className="text-white/70 text-xs font-bold block mb-1">
+            <label className="text-gray-600 text-xs font-bold block mb-1">
               Age (months) / වයස (මාස)
             </label>
             <input
               type="number"
               value={childAge}
               onChange={e => setChildAge(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-white/50"
+              className="w-full px-3 py-2 rounded-xl bg-gray-50 border-2 border-gray-200 text-gray-800 text-sm focus:outline-none focus:border-indigo-400"
             />
           </div>
           <div>
-            <label className="text-white/70 text-xs font-bold block mb-1">
+            <label className="text-gray-600 text-xs font-bold block mb-1">
               Language / භාෂාව
             </label>
             <select
               value={language}
               onChange={e => setLanguage(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-white/50"
+              className="w-full px-3 py-2 rounded-xl bg-gray-50 border-2 border-gray-200 text-gray-800 text-sm focus:outline-none focus:border-indigo-400"
             >
               <option value="english" className="text-black">English</option>
               <option value="sinhala" className="text-black">සිංහල</option>
@@ -529,8 +529,8 @@ const ParentTherapistDashboard = ({ userId }) => {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-500/20 border border-red-400/30 rounded-2xl p-4 text-center">
-          <span className="text-red-300 text-sm">❌ {error}</span>
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 text-center">
+          <span className="text-red-600 text-sm font-semibold">❌ {error}</span>
         </div>
       )}
 
@@ -545,7 +545,7 @@ const ParentTherapistDashboard = ({ userId }) => {
           <div className="mt-4 text-center">
             <button
               onClick={() => window.print()}
-              className="px-6 py-2 bg-white/20 text-white rounded-full font-bold hover:bg-white/30 transition-all"
+              className="px-6 py-2 bg-gray-100 text-gray-700 rounded-full font-bold hover:bg-gray-200 transition-all shadow"
             >
               🖨️ Print Report
             </button>
