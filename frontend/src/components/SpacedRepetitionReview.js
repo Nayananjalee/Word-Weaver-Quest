@@ -178,7 +178,7 @@ const SpacedRepetitionReview = ({ userId }) => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin text-4xl">🔄</div>
-        <p className="ml-3 text-white text-lg">Loading Review Data...</p>
+        <p className="ml-3 text-gray-700 text-lg font-semibold">Loading Review Data...</p>
       </div>
     );
   }
@@ -187,10 +187,10 @@ const SpacedRepetitionReview = ({ userId }) => {
     <div className="p-4 space-y-4">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-white mb-1">
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">
           🧠 පුනරාවර්තන සමාලෝචනය
         </h2>
-        <p className="text-white/80 text-sm">Spaced Repetition Review</p>
+        <p className="text-gray-500 text-sm">Spaced Repetition Review</p>
       </div>
 
       {/* View Tabs */}
@@ -206,7 +206,7 @@ const SpacedRepetitionReview = ({ userId }) => {
             className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
               activeView === tab.key
                 ? 'bg-white text-purple-700 shadow-lg scale-105'
-                : 'bg-white/20 text-white hover:bg-white/30'
+                : 'bg-white text-gray-600 shadow hover:bg-gray-50'
             }`}
           >
             {tab.label}
@@ -247,12 +247,12 @@ const SpacedRepetitionReview = ({ userId }) => {
 
           {/* Due Words List */}
           {dueWords.length > 0 && (
-            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-              <h3 className="text-white font-bold mb-3">⏰ Due for Review</h3>
+            <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+              <h3 className="text-gray-800 font-bold mb-3">⏰ Due for Review</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
                 {dueWords.map((word, i) => (
-                  <div key={i} className="bg-white/10 rounded-xl p-2 flex items-center justify-between">
-                    <span className="text-white font-semibold text-sm">
+                  <div key={i} className="bg-gray-50 rounded-xl p-2 flex items-center justify-between border border-gray-200">
+                    <span className="text-gray-800 font-semibold text-sm">
                       {word.word || word}
                     </span>
                     {word.leitner_box && <LeitnerBoxIndicator box={word.leitner_box} />}
@@ -279,32 +279,32 @@ const SpacedRepetitionReview = ({ userId }) => {
       {activeView === 'review' && sessionActive && currentWord && (
         <div className="space-y-4">
           {/* Progress bar */}
-          <div className="bg-white/10 rounded-full h-3 overflow-hidden">
+          <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
             <div
               className="bg-gradient-to-r from-green-400 to-blue-500 h-full rounded-full transition-all duration-500"
               style={{ width: `${((currentIndex + 1) / dueWords.length) * 100}%` }}
             />
           </div>
-          <p className="text-white/70 text-center text-sm">
+          <p className="text-gray-500 text-center text-sm">
             {currentIndex + 1} / {dueWords.length}
           </p>
 
           {/* Word Card */}
-          <div className={`bg-white/15 backdrop-blur-lg rounded-3xl p-8 text-center shadow-2xl border-2 ${
+          <div className={`bg-white rounded-3xl p-8 text-center shadow-xl border-2 ${
             showResult
               ? selectedQuality >= 3
-                ? 'border-green-400 bg-green-500/20'
-                : 'border-red-400 bg-red-500/20'
-              : 'border-white/20'
+                ? 'border-green-400 bg-green-50'
+                : 'border-red-400 bg-red-50'
+              : 'border-gray-200'
           } transition-all duration-300`}>
-            <div className="text-5xl font-bold text-white mb-4">
+            <div className="text-5xl font-bold text-gray-800 mb-4">
               {currentWord.word}
             </div>
             
             {currentWord.phonemes && (
               <div className="flex gap-2 justify-center mb-3">
                 {(Array.isArray(currentWord.phonemes) ? currentWord.phonemes : []).map((p, i) => (
-                  <span key={i} className="px-2 py-1 bg-white/20 rounded-lg text-white text-xs">
+                  <span key={i} className="px-2 py-1 bg-indigo-100 rounded-lg text-indigo-700 text-xs font-semibold">
                     {p}
                   </span>
                 ))}
@@ -318,7 +318,7 @@ const SpacedRepetitionReview = ({ userId }) => {
             )}
 
             {showResult && (
-              <div className={`text-lg font-bold ${selectedQuality >= 3 ? 'text-green-300' : 'text-red-300'} animate-bounce`}>
+              <div className={`text-lg font-bold ${selectedQuality >= 3 ? 'text-green-600' : 'text-red-600'} animate-bounce`}>
                 {selectedQuality >= 3 ? '✅ නිවැරදියි!' : '❌ තවත් පුහුණු වෙන්න!'}
               </div>
             )}
@@ -327,7 +327,7 @@ const SpacedRepetitionReview = ({ userId }) => {
           {/* Quality Rating */}
           {!showResult && (
             <div className="space-y-2">
-              <p className="text-white text-center font-semibold">
+              <p className="text-gray-800 text-center font-semibold">
                 ඔබට මතකද? (How well do you remember?)
               </p>
               <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
@@ -335,11 +335,11 @@ const SpacedRepetitionReview = ({ userId }) => {
                   <button
                     key={opt.value}
                     onClick={() => submitReview(opt.value)}
-                    className={`p-3 rounded-2xl bg-white/10 hover:bg-white/25 backdrop-blur border-2 border-white/20 hover:border-white/50 transition-all transform hover:scale-105 text-center`}
+                    className={`p-3 rounded-2xl bg-white hover:bg-gray-50 border-2 border-gray-200 hover:border-indigo-300 transition-all transform hover:scale-105 text-center shadow-sm`}
                   >
                     <div className="text-2xl mb-1">{opt.label}</div>
-                    <div className="text-white text-xs font-bold">{opt.desc}</div>
-                    <div className="text-white/60 text-[10px]">{opt.descEn}</div>
+                    <div className="text-gray-800 text-xs font-bold">{opt.desc}</div>
+                    <div className="text-gray-500 text-[10px]">{opt.descEn}</div>
                   </button>
                 ))}
               </div>
@@ -352,7 +352,7 @@ const SpacedRepetitionReview = ({ userId }) => {
       {activeView === 'review' && !sessionActive && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🎯</div>
-          <p className="text-white text-lg mb-4">No active review session</p>
+          <p className="text-gray-700 text-lg mb-4">No active review session</p>
           <button
             onClick={startSession}
             className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-full shadow-lg hover:scale-105 transition-all"
@@ -367,21 +367,21 @@ const SpacedRepetitionReview = ({ userId }) => {
         <div className="space-y-4">
           {/* Session Results */}
           {sessionResults.length > 0 && (
-            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-              <h3 className="text-white font-bold mb-3">📝 Session Results</h3>
+            <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+              <h3 className="text-gray-800 font-bold mb-3">📝 Session Results</h3>
               <div className="space-y-2">
                 {sessionResults.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white/10 rounded-xl p-3">
-                    <span className="text-white font-semibold">{r.word}</span>
+                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-200">
+                    <span className="text-gray-800 font-semibold">{r.word}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-white/70 text-sm">{r.responseTime.toFixed(1)}s</span>
+                      <span className="text-gray-500 text-sm">{r.responseTime.toFixed(1)}s</span>
                       <span className="text-xl">{qualityOptions[r.quality]?.label || '❓'}</span>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-3 text-center">
-                <span className="text-white/80 text-sm">
+                <span className="text-gray-600 text-sm">
                   Average Quality: {(sessionResults.reduce((s, r) => s + r.quality, 0) / sessionResults.length).toFixed(1)} / 5
                 </span>
               </div>
@@ -390,17 +390,17 @@ const SpacedRepetitionReview = ({ userId }) => {
 
           {/* Phoneme Mastery */}
           {statistics?.phoneme_mastery && Object.keys(statistics.phoneme_mastery).length > 0 && (
-            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-              <h3 className="text-white font-bold mb-3">🗣️ Phoneme Mastery</h3>
+            <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+              <h3 className="text-gray-800 font-bold mb-3">🗣️ Phoneme Mastery</h3>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                 {Object.entries(statistics.phoneme_mastery).map(([phoneme, mastery]) => {
                   const pct = Math.round((mastery || 0) * 100);
                   const color = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
                   return (
-                    <div key={phoneme} className="text-center bg-white/10 rounded-xl p-2">
-                      <div className="text-white font-bold text-lg">{phoneme}</div>
-                      <div className={`text-${color}-400 font-bold text-sm`}>{pct}%</div>
-                      <div className={`w-full bg-gray-600 rounded-full h-1.5 mt-1`}>
+                    <div key={phoneme} className="text-center bg-gray-50 rounded-xl p-2 border border-gray-200">
+                      <div className="text-gray-800 font-bold text-lg">{phoneme}</div>
+                      <div className={`text-${color}-600 font-bold text-sm`}>{pct}%</div>
+                      <div className={`w-full bg-gray-200 rounded-full h-1.5 mt-1`}>
                         <div
                           className={`bg-${color}-400 h-1.5 rounded-full transition-all`}
                           style={{ width: `${pct}%` }}
@@ -415,12 +415,12 @@ const SpacedRepetitionReview = ({ userId }) => {
 
           {/* Forgetting Curves */}
           {statistics?.forgetting_curves && Object.keys(statistics.forgetting_curves).length > 0 && (
-            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
-              <h3 className="text-white font-bold mb-3">📉 Forgetting Curves</h3>
+            <div className="bg-white rounded-2xl p-4 shadow-md border border-gray-200">
+              <h3 className="text-gray-800 font-bold mb-3">📉 Forgetting Curves</h3>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {Object.entries(statistics.forgetting_curves).slice(0, 10).map(([word, curve]) => (
-                  <div key={word} className="flex items-center gap-3 bg-white/5 rounded-xl p-2">
-                    <span className="text-white font-semibold w-24 truncate">{word}</span>
+                  <div key={word} className="flex items-center gap-3 bg-gray-50 rounded-xl p-2 border border-gray-200">
+                    <span className="text-gray-800 font-semibold w-24 truncate">{word}</span>
                     <div className="flex-1">
                       <div className="flex gap-0.5">
                         {(curve.retention_points || []).slice(0, 7).map((rp, i) => (
@@ -436,7 +436,7 @@ const SpacedRepetitionReview = ({ userId }) => {
                         ))}
                       </div>
                     </div>
-                    <span className="text-white/70 text-xs w-12 text-right">
+                    <span className="text-gray-600 text-xs w-12 text-right">
                       {Math.round((curve.current_retention || 0) * 100)}%
                     </span>
                   </div>
