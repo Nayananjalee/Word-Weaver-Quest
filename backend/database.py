@@ -77,6 +77,7 @@ def init_db():
                 question TEXT DEFAULT '',
                 correct_answer TEXT,
                 options JSONB,
+                target_words JSONB,
                 difficulty_level INTEGER DEFAULT 1,
                 topic TEXT DEFAULT '',
                 created_at TIMESTAMPTZ DEFAULT NOW()
@@ -87,6 +88,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
                 story_id INTEGER,
+                word TEXT,
                 is_correct BOOLEAN NOT NULL DEFAULT FALSE,
                 response_time DOUBLE PRECISION NOT NULL DEFAULT 0,
                 engagement_score DOUBLE PRECISION,
@@ -223,6 +225,16 @@ def init_db():
             VALUES ('123e4567-e89b-12d3-a456-426614174000', 'default_child', 0, 1)
             ON CONFLICT (id) DO NOTHING;
             """)
+            
+            # ---- Migration: add columns to existing tables ----
+            for stmt in [
+                "ALTER TABLE stories ADD COLUMN IF NOT EXISTS target_words JSONB",
+                "ALTER TABLE performance_logs ADD COLUMN IF NOT EXISTS word TEXT",
+            ]:
+                try:
+                    cur.execute(stmt)
+                except Exception:
+                    pass  # Column may already exist
     print("[DB] Neon PostgreSQL database initialized")
 
 
@@ -246,7 +258,7 @@ _JSONB_COLUMNS = frozenset([
     'srs_state', 'cognitive_load_state', 'options', 'details',
     'most_confused_phonemes', 'improvement_areas',
     'contributing_factors', 'session_features', 'features',
-    'research_metrics', 'summary',
+    'research_metrics', 'summary', 'target_words',
 ])
 
 
