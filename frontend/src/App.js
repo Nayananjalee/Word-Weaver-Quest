@@ -3,12 +3,9 @@ import API_BASE_URL from './config';
 
 const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost:5173';
 import SentenceBySentenceStory from './components/SentenceBySentenceStory';
-import RewardDashboard from './components/RewardDashboard';
-import EngagementDashboard from './components/EngagementDashboard';
-import AttentionDashboard from './components/AttentionDashboard';
+import WordManager from './components/WordManager';
 import ProgressDashboard from './components/ProgressDashboard';
 import SpacedRepetitionReview from './components/SpacedRepetitionReview';
-import CognitiveLoadIndicator from './components/CognitiveLoadIndicator';
 import ParentTherapistDashboard from './components/ParentTherapistDashboard';
 import SharedCameraProvider from './components/SharedCameraProvider';
 import StoryLoadingAnimation from './components/StoryLoadingAnimation';
@@ -26,7 +23,7 @@ function App() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState('game'); // 'game', 'rewards', 'engagement', 'attention', 'progress', 'review', 'brain', 'reports'
+  const [activeTab, setActiveTab] = useState('game'); // 'game', 'words', 'progress', 'review', 'reports'
   const [selectedTopic, setSelectedTopic] = useState('a friendly animal');
 
   // Topic options for story generation - child-friendly, culturally relevant
@@ -250,34 +247,14 @@ function App() {
             🎮 Game
           </button>
           <button
-            onClick={() => setActiveTab('rewards')}
+            onClick={() => setActiveTab('words')}
             className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'rewards'
-                ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg scale-105'
-                : 'bg-white/30 text-white hover:bg-white/40'
-            }`}
-          >
-            🏆 Rewards
-          </button>
-          <button
-            onClick={() => setActiveTab('engagement')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'engagement'
+              activeTab === 'words'
                 ? 'bg-gradient-to-r from-purple-400 to-pink-400 text-white shadow-lg scale-105'
                 : 'bg-white/30 text-white hover:bg-white/40'
             }`}
           >
-            📊 Engagement
-          </button>
-          <button
-            onClick={() => setActiveTab('attention')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'attention'
-                ? 'bg-gradient-to-r from-blue-400 to-indigo-400 text-white shadow-lg scale-105'
-                : 'bg-white/30 text-white hover:bg-white/40'
-            }`}
-          >
-            👁️ Attention
+            📝 Words
           </button>
           <button
             onClick={() => setActiveTab('progress')}
@@ -298,16 +275,6 @@ function App() {
             }`}
           >
             🧠 Review
-          </button>
-          <button
-            onClick={() => setActiveTab('brain')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'brain'
-                ? 'bg-gradient-to-r from-cyan-400 to-blue-400 text-white shadow-lg scale-105'
-                : 'bg-white/30 text-white hover:bg-white/40'
-            }`}
-          >
-            🔬 Brain Load
           </button>
           <button
             onClick={() => setActiveTab('reports')}
@@ -403,21 +370,9 @@ function App() {
             </>
           )}
 
-          {activeTab === 'rewards' && (
+          {activeTab === 'words' && userId && (
             <div className="flex-1 overflow-auto">
-              <RewardDashboard userId={userId} score={score} />
-            </div>
-          )}
-
-          {activeTab === 'engagement' && userId && (
-            <div className="flex-1 overflow-auto">
-              <EngagementDashboard userId={userId} />
-            </div>
-          )}
-
-          {activeTab === 'attention' && userId && (
-            <div className="flex-1 overflow-auto">
-              <AttentionDashboard userId={userId} />
+              <WordManager userId={userId} />
             </div>
           )}
 
@@ -430,12 +385,6 @@ function App() {
           {activeTab === 'review' && userId && (
             <div className="flex-1 overflow-auto">
               <SpacedRepetitionReview userId={userId} />
-            </div>
-          )}
-
-          {activeTab === 'brain' && userId && (
-            <div className="flex-1 overflow-auto">
-              <CognitiveLoadIndicator userId={userId} />
             </div>
           )}
 
