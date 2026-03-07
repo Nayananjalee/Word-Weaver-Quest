@@ -5,17 +5,20 @@ import API_BASE_URL from '../config';
  * WordManager — Therapist tab to manage a child's difficult words.
  *
  * Features:
- *  • View current word list
+ *  • View current word list (therapist-added)
+ *  • View practiced words (from gameplay)
  *  • Add / remove words
  *  • Per-word performance stats (accuracy, attempts, SRS box)
  */
 export default function WordManager({ userId }) {
   const [words, setWords] = useState([]);
+  const [practicedWords, setPracticedWords] = useState([]);
   const [wordStats, setWordStats] = useState({});
   const [newWord, setNewWord] = useState('');
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState('all'); // 'all', 'therapist', 'practiced'
 
   // ----------------- Fetch words -----------------
   const fetchWords = useCallback(async () => {
@@ -23,6 +26,7 @@ export default function WordManager({ userId }) {
       const res = await fetch(`${API_BASE_URL}/words/${userId}`);
       const data = await res.json();
       setWords(data.words || []);
+      setPracticedWords(data.practiced_words || []);
       setWordStats(data.word_stats || {});
     } catch (err) {
       console.error('Error fetching words:', err);
@@ -129,65 +133,128 @@ export default function WordManager({ userId }) {
       </div>
       {error && <p style={styles.error}>{error}</p>}
 
+      {/* --------- View mode tabs --------- */}
+      <div style={styles.viewTabs}>
+        {[
+          { key: 'all', label: '🔤 All Words', count: Object.keys(wordStats).length },
+          { key: 'therapist', label: '📋 Therapist List', count: words.length },
+          { key: 'practiced', label: '🎮 Practiced', count: practicedWords.length },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setViewMode(tab.key)}
+            style={{
+              ...styles.viewTab,
+              ...(viewMode === tab.key ? styles.viewTabActive : {}),
+            }}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
+      </div>
+
       {/* --------- Word count --------- */}
-      <p style={styles.count}>{words.length} word{words.length !== 1 ? 's' : ''} in the list</p>
+      {(() => {
+        const displayWords = viewMode === 'therapist' ? words
+          : viewMode === 'practiced' ? practicedWords
+          : [...new Set([...words, ...practicedWords])];
+        const count = displayWords.length;
+        return <p style={styles.count}>{count} word{count !== 1 ? 's' : ''} {viewMode === 'all' ? 'total' : viewMode === 'therapist' ? 'in therapist list' : 'practiced in stories'}</p>;
+      })()}
 
       {/* --------- Word list --------- */}
-      {words.length === 0 ? (
-        <div style={styles.empty}>
-          <span style={{ fontSize: 48 }}>📚</span>
-          <p style={{ color: '#94a3b8', marginTop: 8 }}>No words added yet. Add difficult words above so they appear in stories.</p>
-        </div>
-      ) : (
-        <div style={styles.list}>
-          {words.map((word) => {
-            const s = wordStats[word] || {};
-            const acc = s.accuracy ?? 0;
-            const attempts = s.attempts ?? 0;
-            const correct = s.correct ?? 0;
-            const box = s.leitner_box ?? 1;
+      {(() => {
+        const displayWords = viewMode === 'therapist' ? words
+          : viewMode === 'practiced' ? practicedWords
+          : [...new Set([...words, ...practicedWords])];
+        
+        if (displayWords.length === 0) {
+          return (
+            <div style={styles.empty}>
+              <span style={{ fontSize: 48 }}>📚</span>
+              <p style={{ color: '#94a3b8', marginTop: 8 }}>
+                {viewMode === 'practiced'
+                  ? 'No words practiced yet. Play some stories!'
+                  : 'No words added yet. Add difficult words above so they appear in stories.'}
+              </p>
+            </div>
+          );
+        }
+        
+        return (
+          <div style={styles.list}>
+            {displayWords.map((word) => {
+              const s = wordStats[word] || {};
+              const acc = s.accuracy ?? 0;
+              const attempts = s.attempts ?? 0;
+              const correct = s.correct ?? 0;
+              const box = s.leitner_box ?? 1;
+              const inTherapistList = words.includes(word);
 
-            return (
-              <div key={word} style={styles.card}>
-                {/* Left: word + box badge */}
-                <div style={styles.cardLeft}>
-                  <span style={styles.word}>{word}</span>
-                  <span style={{ ...styles.boxBadge, background: boxColor(box) }}>{boxLabel(box)}</span>
-                </div>
-
-                {/* Middle: stats */}
-                <div style={styles.statsRow}>
-                  {/* Accuracy bar */}
-                  <div style={styles.statBlock}>
-                    <span style={styles.statLabel}>Accuracy</span>
-                    <div style={styles.barBg}>
-                      <div style={{ ...styles.barFill, width: `${acc}%`, background: accuracyColor(acc) }} />
+              return (
+                <div key={word} style={styles.card}>
+                  {/* Left: word + box badge */}
+                  <div style={styles.cardLeft}>
+                    <span style={styles.word}>{word}</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <span style={{ ...styles.boxBadge, background: boxColor(box) }}>{boxLabel(box)}</span>
+                      {!inTherapistList && (
+                        <span style={{ ...styles.boxBadge, background: '#6366f1' }}>Story</span>
+                      )}
                     </div>
-                    <span style={{ ...styles.statValue, color: accuracyColor(acc) }}>{acc}%</span>
                   </div>
 
-                  {/* Attempts */}
-                  <div style={styles.statBlock}>
-                    <span style={styles.statLabel}>Attempts</span>
-                    <span style={styles.statValue}>{attempts}</span>
+                  {/* Middle: stats */}
+                  <div style={styles.statsRow}>
+                    {/* Accuracy bar */}
+                    <div style={styles.statBlock}>
+                      <span style={styles.statLabel}>Accuracy</span>
+                      <div style={styles.barBg}>
+                        <div style={{ ...styles.barFill, width: `${acc}%`, background: accuracyColor(acc) }} />
+                      </div>
+                      <span style={{ ...styles.statValue, color: accuracyColor(acc) }}>{acc}%</span>
+                    </div>
+
+                    {/* Attempts */}
+                    <div style={styles.statBlock}>
+                      <span style={styles.statLabel}>Attempts</span>
+                      <span style={styles.statValue}>{attempts}</span>
+                    </div>
+
+                    {/* Correct */}
+                    <div style={styles.statBlock}>
+                      <span style={styles.statLabel}>Correct</span>
+                      <span style={{ ...styles.statValue, color: '#22c55e' }}>{correct}</span>
+                    </div>
                   </div>
 
-                  {/* Correct */}
-                  <div style={styles.statBlock}>
-                    <span style={styles.statLabel}>Correct</span>
-                    <span style={{ ...styles.statValue, color: '#22c55e' }}>{correct}</span>
-                  </div>
+                  {/* Right: remove button (only for therapist words) */}
+                  {inTherapistList ? (
+                    <button style={styles.removeBtn} onClick={() => handleRemove(word)} title="Remove word">
+                      ✕
+                    </button>
+                  ) : (
+                    <button
+                      style={{ ...styles.addSmallBtn }}
+                      onClick={async () => {
+                        await fetch(`${API_BASE_URL}/words/add`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ user_id: userId, word }),
+                        });
+                        fetchWords();
+                      }}
+                      title="Add to therapist list"
+                    >
+                      ➕
+                    </button>
+                  )}
                 </div>
-
-                {/* Right: remove button */}
-                <button style={styles.removeBtn} onClick={() => handleRemove(word)} title="Remove word">
-                  ✕
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -336,5 +403,41 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  addSmallBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: '50%',
+    border: 'none',
+    background: 'rgba(34,197,94,0.25)',
+    color: '#4ade80',
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  viewTabs: {
+    display: 'flex',
+    gap: 6,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  viewTab: {
+    padding: '6px 14px',
+    borderRadius: 20,
+    border: '1px solid rgba(255,255,255,0.2)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  viewTabActive: {
+    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    color: '#fff',
+    border: '1px solid transparent',
   },
 };
