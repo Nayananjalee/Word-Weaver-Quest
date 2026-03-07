@@ -17,10 +17,7 @@ from psycopg2.pool import ThreadedConnectionPool
 # ---------------------------------------------------------------------------
 # Connection URL — set DATABASE_URL env-var on Render / local .env
 # ---------------------------------------------------------------------------
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_AvS23pxzJcTf@ep-icy-morning-ad1dmbi6-pooler.c-2.us-east-1.aws.neon.tech/word-weaver?sslmode=require"
-)
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 # ---------------------------------------------------------------------------
 # Connection pool (lazy-initialised)
