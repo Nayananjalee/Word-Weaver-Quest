@@ -1,28 +1,45 @@
 """
-SQLite Database Layer for Word-Weaver-Quest
-=============================================
-Replaces Supabase with a local SQLite database.
+PostgreSQL Database Layer for Word-Weaver-Quest (Neon)
+======================================================
+Persistent PostgreSQL database hosted on Neon.
 Provides a simple interface compatible with the existing codebase patterns.
 """
 
-import sqlite3
 import json
-import uuid
 import os
-from datetime import datetime
 from contextlib import contextmanager
 
-# Database file lives next to main.py
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "word_weaver.db")
+import psycopg2
+import psycopg2.extras
+from psycopg2.extras import RealDictCursor, Json
+from psycopg2.pool import ThreadedConnectionPool
+
+# ---------------------------------------------------------------------------
+# Connection URL — set DATABASE_URL env-var on Render / local .env
+# ---------------------------------------------------------------------------
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://neondb_owner:npg_AvS23pxzJcTf@ep-icy-morning-ad1dmbi6-pooler.c-2.us-east-1.aws.neon.tech/word-weaver?sslmode=require"
+)
+
+# ---------------------------------------------------------------------------
+# Connection pool (lazy-initialised)
+# ---------------------------------------------------------------------------
+_pool = None
+
+
+def _get_pool():
+    global _pool
+    if _pool is None:
+        _pool = ThreadedConnectionPool(1, 10, DATABASE_URL)
+    return _pool
 
 
 @contextmanager
 def get_connection():
-    """Thread-safe connection context manager."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Return dict-like rows
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    """Thread-safe pooled connection context manager."""
+    pool = _get_pool()
+    conn = pool.getconn()
     try:
         yield conn
         conn.commit()
@@ -30,196 +47,211 @@ def get_connection():
         conn.rollback()
         raise
     finally:
-        conn.close()
+        pool.putconn(conn)
 
 
 def init_db():
     """Create all tables if they don't exist. Called once at startup."""
     with get_connection() as conn:
-        conn.executescript("""
-        -- Profiles table (replaces Supabase auth.users + profiles)
-        CREATE TABLE IF NOT EXISTS profiles (
-            id TEXT PRIMARY KEY,
-            username TEXT DEFAULT '',
-            score INTEGER DEFAULT 0,
-            learning_level INTEGER DEFAULT 1,
-            difficult_words TEXT DEFAULT '[]',
-            adaptive_state TEXT,
-            engagement_state TEXT,
-            phoneme_state TEXT,
-            attention_state TEXT,
-            trajectory_state TEXT,
-            srs_state TEXT,
-            cognitive_load_state TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+        with conn.cursor() as cur:
+            cur.execute("""
+            -- Profiles table
+            CREATE TABLE IF NOT EXISTS profiles (
+                id TEXT PRIMARY KEY,
+                username TEXT DEFAULT '',
+                score INTEGER DEFAULT 0,
+                learning_level INTEGER DEFAULT 1,
+                difficult_words JSONB DEFAULT '[]'::jsonb,
+                adaptive_state JSONB,
+                engagement_state JSONB,
+                phoneme_state JSONB,
+                attention_state JSONB,
+                trajectory_state JSONB,
+                srs_state JSONB,
+                cognitive_load_state JSONB,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
 
-        -- Stories table
-        CREATE TABLE IF NOT EXISTS stories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            story_text TEXT,
-            question TEXT DEFAULT '',
-            correct_answer TEXT,
-            options TEXT,
-            difficulty_level INTEGER DEFAULT 1,
-            topic TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+            -- Stories table
+            CREATE TABLE IF NOT EXISTS stories (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                story_text TEXT,
+                question TEXT DEFAULT '',
+                correct_answer TEXT,
+                options JSONB,
+                difficulty_level INTEGER DEFAULT 1,
+                topic TEXT DEFAULT '',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
 
-        -- Performance logs
-        CREATE TABLE IF NOT EXISTS performance_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            story_id INTEGER,
-            is_correct INTEGER NOT NULL DEFAULT 0,
-            response_time REAL NOT NULL DEFAULT 0,
-            engagement_score REAL,
-            difficulty_level INTEGER,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+            -- Performance logs
+            CREATE TABLE IF NOT EXISTS performance_logs (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                story_id INTEGER,
+                is_correct BOOLEAN NOT NULL DEFAULT FALSE,
+                response_time DOUBLE PRECISION NOT NULL DEFAULT 0,
+                engagement_score DOUBLE PRECISION,
+                difficulty_level INTEGER,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
 
-        -- Phoneme errors
-        CREATE TABLE IF NOT EXISTS phoneme_errors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            phoneme_pair TEXT NOT NULL,
-            error_count INTEGER DEFAULT 1,
-            last_error_at TEXT DEFAULT (datetime('now')),
-            created_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(user_id, phoneme_pair)
-        );
+            -- Phoneme errors
+            CREATE TABLE IF NOT EXISTS phoneme_errors (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                phoneme_pair TEXT NOT NULL,
+                error_count INTEGER DEFAULT 1,
+                last_error_at TIMESTAMPTZ DEFAULT NOW(),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, phoneme_pair)
+            );
 
-        -- Engagement logs
-        CREATE TABLE IF NOT EXISTS engagement_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            session_id TEXT NOT NULL,
-            timestamp TEXT DEFAULT (datetime('now')),
-            engagement_score REAL,
-            response_time REAL,
-            gesture_quality REAL
-        );
+            -- Engagement logs
+            CREATE TABLE IF NOT EXISTS engagement_logs (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                session_id TEXT NOT NULL,
+                timestamp TIMESTAMPTZ DEFAULT NOW(),
+                engagement_score DOUBLE PRECISION,
+                response_time DOUBLE PRECISION,
+                gesture_quality DOUBLE PRECISION
+            );
 
-        -- Dropout predictions
-        CREATE TABLE IF NOT EXISTS dropout_predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT NOT NULL,
-            user_id TEXT REFERENCES profiles(id),
-            predicted_at TEXT DEFAULT (datetime('now')),
-            dropout_probability REAL,
-            intervention_triggered INTEGER DEFAULT 0,
-            actual_dropout INTEGER
-        );
+            -- Dropout predictions
+            CREATE TABLE IF NOT EXISTS dropout_predictions (
+                id SERIAL PRIMARY KEY,
+                session_id TEXT,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                predicted_at TIMESTAMPTZ DEFAULT NOW(),
+                dropout_probability DOUBLE PRECISION,
+                risk_level TEXT,
+                intervention_type TEXT,
+                contributing_factors JSONB,
+                session_features JSONB,
+                intervention_triggered BOOLEAN DEFAULT FALSE,
+                actual_dropout BOOLEAN,
+                timestamp DOUBLE PRECISION
+            );
 
-        -- Therapy sessions
-        CREATE TABLE IF NOT EXISTS therapy_sessions (
-            id TEXT PRIMARY KEY,
-            user_id TEXT REFERENCES profiles(id),
-            started_at TEXT DEFAULT (datetime('now')),
-            ended_at TEXT,
-            total_questions INTEGER DEFAULT 0,
-            correct_answers INTEGER DEFAULT 0,
-            average_response_time REAL,
-            average_engagement_score REAL,
-            difficulty_level_start INTEGER,
-            difficulty_level_end INTEGER,
-            dropout INTEGER DEFAULT 0
-        );
+            -- Therapy sessions
+            CREATE TABLE IF NOT EXISTS therapy_sessions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                started_at TIMESTAMPTZ DEFAULT NOW(),
+                ended_at TIMESTAMPTZ,
+                total_questions INTEGER DEFAULT 0,
+                correct_answers INTEGER DEFAULT 0,
+                average_response_time DOUBLE PRECISION,
+                average_engagement_score DOUBLE PRECISION,
+                difficulty_level_start INTEGER,
+                difficulty_level_end INTEGER,
+                dropout BOOLEAN DEFAULT FALSE
+            );
 
-        -- Severity estimates
-        CREATE TABLE IF NOT EXISTS severity_estimates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            estimated_severity TEXT,
-            confidence REAL,
-            details TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+            -- Severity estimates
+            CREATE TABLE IF NOT EXISTS severity_estimates (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                estimated_severity TEXT,
+                severity_category TEXT,
+                estimated_threshold_db DOUBLE PRECISION,
+                threshold_range_lower DOUBLE PRECISION,
+                threshold_range_upper DOUBLE PRECISION,
+                confidence DOUBLE PRECISION,
+                features JSONB,
+                details JSONB,
+                timestamp DOUBLE PRECISION,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
 
-        -- Session analytics (Feature 7)
-        CREATE TABLE IF NOT EXISTS session_analytics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            session_id TEXT,
-            total_questions INTEGER DEFAULT 0,
-            correct_answers INTEGER DEFAULT 0,
-            accuracy REAL,
-            avg_response_time REAL,
-            learning_efficiency_index REAL,
-            flow_ratio REAL,
-            zpd_alignment REAL,
-            resilience_score REAL,
-            engagement_consistency REAL,
-            attention_quality_index REAL,
-            streak_max INTEGER DEFAULT 0,
-            frustration_events INTEGER DEFAULT 0,
-            boredom_events INTEGER DEFAULT 0,
-            topic TEXT,
-            difficulty_start INTEGER,
-            difficulty_end INTEGER,
-            summary TEXT,
-            research_metrics TEXT,
-            timestamp REAL,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+            -- Session analytics (Feature 7)
+            CREATE TABLE IF NOT EXISTS session_analytics (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                session_id TEXT,
+                total_questions INTEGER DEFAULT 0,
+                correct_answers INTEGER DEFAULT 0,
+                accuracy DOUBLE PRECISION,
+                avg_response_time DOUBLE PRECISION,
+                learning_efficiency_index DOUBLE PRECISION,
+                flow_ratio DOUBLE PRECISION,
+                zpd_alignment DOUBLE PRECISION,
+                resilience_score DOUBLE PRECISION,
+                engagement_consistency DOUBLE PRECISION,
+                attention_quality_index DOUBLE PRECISION,
+                streak_max INTEGER DEFAULT 0,
+                frustration_events INTEGER DEFAULT 0,
+                boredom_events INTEGER DEFAULT 0,
+                topic TEXT,
+                difficulty_start INTEGER,
+                difficulty_end INTEGER,
+                summary JSONB,
+                research_metrics JSONB,
+                timestamp DOUBLE PRECISION,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
 
-        -- Word mastery
-        CREATE TABLE IF NOT EXISTS word_mastery (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            word TEXT NOT NULL,
-            mastery_score REAL DEFAULT 500.0,
-            attempts INTEGER DEFAULT 0,
-            correct INTEGER DEFAULT 0,
-            last_seen_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(user_id, word)
-        );
+            -- Word mastery
+            CREATE TABLE IF NOT EXISTS word_mastery (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                word TEXT NOT NULL,
+                mastery_score DOUBLE PRECISION DEFAULT 500.0,
+                attempts INTEGER DEFAULT 0,
+                correct INTEGER DEFAULT 0,
+                last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, word)
+            );
 
-        -- Weekly summaries
-        CREATE TABLE IF NOT EXISTS weekly_summaries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT REFERENCES profiles(id),
-            week_start_date TEXT,
-            week_end_date TEXT,
-            total_sessions INTEGER,
-            total_questions INTEGER,
-            accuracy_rate REAL,
-            average_engagement REAL,
-            most_confused_phonemes TEXT,
-            improvement_areas TEXT,
-            report_generated_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(user_id, week_start_date)
-        );
+            -- Weekly summaries
+            CREATE TABLE IF NOT EXISTS weekly_summaries (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
+                week_start_date TEXT,
+                week_end_date TEXT,
+                total_sessions INTEGER,
+                total_questions INTEGER,
+                accuracy_rate DOUBLE PRECISION,
+                average_engagement DOUBLE PRECISION,
+                most_confused_phonemes JSONB,
+                improvement_areas JSONB,
+                report_generated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, week_start_date)
+            );
 
-        -- Insert default user profile if it doesn't exist
-        INSERT OR IGNORE INTO profiles (id, username, score, learning_level)
-        VALUES ('123e4567-e89b-12d3-a456-426614174000', 'default_child', 0, 1);
-        """)
-    print(f"[DB] SQLite database initialized at {DB_PATH}")
-
-    # Migrate existing tables — add any columns that may have been added after initial creation
-    _migrate_columns()
-
-
-def _migrate_columns():
-    """Add missing columns to existing tables without data loss."""
-    migrations = [
-        ("session_analytics", "summary", "TEXT"),
-        ("session_analytics", "research_metrics", "TEXT"),
-        ("session_analytics", "timestamp", "REAL"),
-    ]
-    with get_connection() as conn:
-        for table, column, col_type in migrations:
-            try:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-            except Exception:
-                pass  # Column already exists — that's fine
+            -- Insert default user profile if it doesn't exist
+            INSERT INTO profiles (id, username, score, learning_level)
+            VALUES ('123e4567-e89b-12d3-a456-426614174000', 'default_child', 0, 1)
+            ON CONFLICT (id) DO NOTHING;
+            """)
+    print("[DB] Neon PostgreSQL database initialized")
 
 
 # =====================================================
 # HELPER CLASS: Drop-in replacement for Supabase client
 # =====================================================
+
+# Map table → unique/primary key columns for ON CONFLICT in upsert
+_UPSERT_CONFLICT_TARGETS = {
+    'profiles': '(id)',
+    'phoneme_errors': '(user_id, phoneme_pair)',
+    'word_mastery': '(user_id, word)',
+    'weekly_summaries': '(user_id, week_start_date)',
+    'therapy_sessions': '(id)',
+}
+
+# Columns that hold JSONB data (for automatic Json wrapping)
+_JSONB_COLUMNS = frozenset([
+    'difficult_words', 'adaptive_state', 'engagement_state',
+    'phoneme_state', 'attention_state', 'trajectory_state',
+    'srs_state', 'cognitive_load_state', 'options', 'details',
+    'most_confused_phonemes', 'improvement_areas',
+    'contributing_factors', 'session_features', 'features',
+    'research_metrics',
+])
+
 
 class DBResult:
     """Mimics Supabase response object with .data attribute."""
@@ -244,6 +276,7 @@ class QueryBuilder:
         self._limit_val = None
         self._single = False
         self._data = None
+        self._on_conflict = None
 
     # --- Operations ---
     def select(self, columns='*'):
@@ -261,9 +294,10 @@ class QueryBuilder:
         self._data = data
         return self
 
-    def upsert(self, data):
+    def upsert(self, data, on_conflict=None):
         self._operation = 'upsert'
         self._data = data
+        self._on_conflict = on_conflict
         return self
 
     def delete(self):
@@ -324,18 +358,27 @@ class QueryBuilder:
             elif self._operation == 'delete':
                 return self._exec_delete(conn)
 
+    # --- Internal helpers ---
+
     def _build_where(self):
         if not self._filters:
             return "", []
         clauses = []
         params = []
         for col, op, val in self._filters:
-            clauses.append(f"{col} {op} ?")
+            clauses.append(f"{col} {op} %s")
             params.append(val)
         return " WHERE " + " AND ".join(clauses), params
 
+    @staticmethod
+    def _wrap_value(key, value):
+        """Wrap dicts/lists as psycopg2 Json for JSONB columns."""
+        if isinstance(value, (dict, list)):
+            return Json(value)
+        return value
+
     def _exec_select(self, conn):
-        cols = self._columns.replace(' ', '')  # "id, score" -> "id,score"
+        cols = self._columns.replace(' ', '')
         sql = f"SELECT {cols} FROM {self._table}"
         where, params = self._build_where()
         sql += where
@@ -344,24 +387,10 @@ class QueryBuilder:
             sql += f" ORDER BY {self._order_col} {direction}"
         if self._limit_val:
             sql += f" LIMIT {self._limit_val}"
-        
-        cursor = conn.execute(sql, params)
-        rows = [dict(r) for r in cursor.fetchall()]
 
-        # Parse JSON columns — all state blobs are parsed to Python objects so
-        # ML engines that expect dicts receive dicts. Engines that call json.loads()
-        # on them are fixed to accept both str and dict.
-        json_columns = ['difficult_words', 'adaptive_state', 'engagement_state',
-                        'phoneme_state', 'attention_state', 'trajectory_state',
-                        'srs_state', 'cognitive_load_state',
-                        'most_confused_phonemes', 'improvement_areas', 'options', 'details']
-        for row in rows:
-            for jcol in json_columns:
-                if jcol in row and isinstance(row[jcol], str):
-                    try:
-                        row[jcol] = json.loads(row[jcol])
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            rows = [dict(r) for r in cur.fetchall()]
 
         if self._single:
             return DBResult(rows[0] if rows else None)
@@ -371,87 +400,77 @@ class QueryBuilder:
         data = self._data
         if isinstance(data, dict):
             data = [data]
-        
+
         results = []
         for record in data:
-            # Serialize any dict/list values to JSON
-            processed = {}
-            for k, v in record.items():
-                if isinstance(v, (dict, list)):
-                    processed[k] = json.dumps(v)
-                else:
-                    processed[k] = v
+            processed = {k: self._wrap_value(k, v) for k, v in record.items()}
 
             columns = ', '.join(processed.keys())
-            placeholders = ', '.join(['?'] * len(processed))
+            placeholders = ', '.join(['%s'] * len(processed))
             values = list(processed.values())
-            
-            cursor = conn.execute(
-                f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders})",
-                values
-            )
-            # Return inserted row
-            inserted_id = cursor.lastrowid
-            row_cursor = conn.execute(f"SELECT * FROM {self._table} WHERE rowid = ?", [inserted_id])
-            row = row_cursor.fetchone()
-            if row:
-                results.append(dict(row))
-        
+
+            sql = f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders}) RETURNING *"
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, values)
+                row = cur.fetchone()
+                if row:
+                    results.append(dict(row))
+
         return DBResult(results[0] if len(results) == 1 else results)
 
     def _exec_update(self, conn):
-        processed = {}
-        for k, v in self._data.items():
-            if isinstance(v, (dict, list)):
-                processed[k] = json.dumps(v)
-            else:
-                processed[k] = v
+        processed = {k: self._wrap_value(k, v) for k, v in self._data.items()}
 
-        set_clause = ', '.join([f"{k} = ?" for k in processed.keys()])
+        set_clause = ', '.join([f"{k} = %s" for k in processed.keys()])
         set_values = list(processed.values())
-        
+
         where, where_params = self._build_where()
-        conn.execute(
-            f"UPDATE {self._table} SET {set_clause}{where}",
-            set_values + where_params
-        )
-        
-        # Return updated rows
-        select_cursor = conn.execute(f"SELECT * FROM {self._table}{where}", where_params)
-        rows = [dict(r) for r in select_cursor.fetchall()]
+        sql = f"UPDATE {self._table} SET {set_clause}{where} RETURNING *"
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, set_values + where_params)
+            rows = [dict(r) for r in cur.fetchall()]
         return DBResult(rows)
 
     def _exec_upsert(self, conn):
         data = self._data
         if isinstance(data, dict):
             data = [data]
-        
+
+        # Determine conflict target
+        if self._on_conflict:
+            conflict_cols = f"({self._on_conflict})"
+        else:
+            conflict_cols = _UPSERT_CONFLICT_TARGETS.get(self._table, '(id)')
+
         results = []
         for record in data:
-            processed = {}
-            for k, v in record.items():
-                if isinstance(v, (dict, list)):
-                    processed[k] = json.dumps(v)
-                else:
-                    processed[k] = v
+            processed = {k: self._wrap_value(k, v) for k, v in record.items()}
 
             columns = ', '.join(processed.keys())
-            placeholders = ', '.join(['?'] * len(processed))
-            updates = ', '.join([f"{k} = excluded.{k}" for k in processed.keys()])
+            placeholders = ', '.join(['%s'] * len(processed))
+            updates = ', '.join([f"{k} = EXCLUDED.{k}" for k in processed.keys()])
             values = list(processed.values())
-            
-            conn.execute(
+
+            sql = (
                 f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders}) "
-                f"ON CONFLICT DO UPDATE SET {updates}",
-                values
+                f"ON CONFLICT {conflict_cols} DO UPDATE SET {updates} "
+                f"RETURNING *"
             )
-            results.append(record)
-        
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, values)
+                row = cur.fetchone()
+                if row:
+                    results.append(dict(row))
+                else:
+                    results.append(record)
+
         return DBResult(results[0] if len(results) == 1 else results)
 
     def _exec_delete(self, conn):
         where, params = self._build_where()
-        conn.execute(f"DELETE FROM {self._table}{where}", params)
+        sql = f"DELETE FROM {self._table}{where}"
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
         return DBResult([])
 
 
