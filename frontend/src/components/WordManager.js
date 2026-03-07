@@ -97,23 +97,23 @@ export default function WordManager({ userId }) {
   };
 
   const masteryConfig = {
-    mastered:   { label: 'Mastered',    emoji: '🏆', color: '#22c55e', bg: 'rgba(34,197,94,0.2)' },
-    familiar:   { label: 'Familiar',    emoji: '📗', color: '#3b82f6', bg: 'rgba(59,130,246,0.2)' },
-    learning:   { label: 'Learning',    emoji: '📙', color: '#eab308', bg: 'rgba(234,179,8,0.2)' },
-    struggling: { label: 'Struggling',  emoji: '📕', color: '#ef4444', bg: 'rgba(239,68,68,0.2)' },
-    new:        { label: 'New',         emoji: '🆕', color: '#9ca3af', bg: 'rgba(156,163,175,0.2)' },
+    mastered:   { label: 'Mastered',    emoji: '🏆', color: '#15803d', bg: '#dcfce7' },
+    familiar:   { label: 'Familiar',    emoji: '📗', color: '#1d4ed8', bg: '#dbeafe' },
+    learning:   { label: 'Learning',    emoji: '📙', color: '#a16207', bg: '#fef9c3' },
+    struggling: { label: 'Struggling',  emoji: '📕', color: '#b91c1c', bg: '#fee2e2' },
+    new:        { label: 'New',         emoji: '🆕', color: '#4b5563', bg: '#f3f4f6' },
   };
 
   const trendConfig = {
-    improving: { label: '↗ Improving', color: '#22c55e' },
-    stable:    { label: '→ Stable',    color: '#94a3b8' },
-    declining: { label: '↘ Declining', color: '#ef4444' },
+    improving: { label: '↗ Improving', color: '#15803d' },
+    stable:    { label: '→ Stable',    color: '#475569' },
+    declining: { label: '↘ Declining', color: '#b91c1c' },
   };
 
   const recConfig = {
-    ready_to_remove: { label: '✅ Ready to Remove', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-    keep_practicing:  { label: '🔄 Keep Practicing', color: '#eab308', bg: 'rgba(234,179,8,0.15)' },
-    needs_attention:  { label: '⚠️ Needs Attention', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+    ready_to_remove: { label: '✅ Ready to Remove', color: '#15803d', bg: '#dcfce7' },
+    keep_practicing:  { label: '🔄 Keep Practicing', color: '#a16207', bg: '#fef9c3' },
+    needs_attention:  { label: '⚠️ Needs Attention', color: '#b91c1c', bg: '#fee2e2' },
   };
 
   // Sort words
@@ -136,7 +136,7 @@ export default function WordManager({ userId }) {
     return (
       <div style={styles.center}>
         <div style={styles.spinner}>⏳</div>
-        <p style={{ color: '#fff', marginTop: 12 }}>Loading words…</p>
+        <p style={{ color: '#1e293b', marginTop: 12, fontWeight: 600 }}>Loading words…</p>
       </div>
     );
   }
@@ -184,22 +184,22 @@ export default function WordManager({ userId }) {
 
       {/* --------- Recommendation Alerts --------- */}
       {(summary.ready_to_remove || []).length > 0 && (
-        <div style={{ ...styles.alertBox, background: 'rgba(34,197,94,0.1)', borderColor: '#22c55e' }}>
+        <div style={{ ...styles.alertBox, background: '#f0fdf4', borderColor: '#22c55e' }}>
           <span style={{ fontSize: 18 }}>✅</span>
           <div>
-            <strong style={{ color: '#22c55e' }}>Ready to Remove:</strong>
-            <span style={{ color: '#cbd5e1', marginLeft: 8 }}>
+            <strong style={{ color: '#15803d' }}>Ready to Remove:</strong>
+            <span style={{ color: '#1e293b', marginLeft: 8, fontWeight: 600 }}>
               {summary.ready_to_remove.join(', ')}
             </span>
           </div>
         </div>
       )}
       {(summary.needs_attention || []).length > 0 && (
-        <div style={{ ...styles.alertBox, background: 'rgba(239,68,68,0.1)', borderColor: '#ef4444' }}>
+        <div style={{ ...styles.alertBox, background: '#fef2f2', borderColor: '#ef4444' }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
           <div>
-            <strong style={{ color: '#ef4444' }}>Needs Attention:</strong>
-            <span style={{ color: '#cbd5e1', marginLeft: 8 }}>
+            <strong style={{ color: '#b91c1c' }}>Needs Attention:</strong>
+            <span style={{ color: '#1e293b', marginLeft: 8, fontWeight: 600 }}>
               {summary.needs_attention.join(', ')}
             </span>
           </div>
@@ -266,7 +266,7 @@ export default function WordManager({ userId }) {
       {sortedWords.length === 0 ? (
         <div style={styles.empty}>
           <span style={{ fontSize: 48 }}>📚</span>
-          <p style={{ color: '#94a3b8', marginTop: 8 }}>
+          <p style={{ color: '#475569', marginTop: 8, fontWeight: 600 }}>
             {viewMode === 'practiced'
               ? 'No words from stories yet. Play some stories!'
               : 'No words added. Add difficult words above so they appear in stories.'}
@@ -301,11 +301,11 @@ export default function WordManager({ userId }) {
                       <span style={{ ...styles.badge, background: mc.bg, color: mc.color }}>
                         {mc.emoji} {mc.label}
                       </span>
-                      <span style={{ ...styles.badge, color: tc.color, background: 'rgba(255,255,255,0.08)' }}>
+                      <span style={{ ...styles.badge, color: tc.color, background: '#f1f5f9' }}>
                         {tc.label}
                       </span>
                       {!inList && (
-                        <span style={{ ...styles.badge, background: 'rgba(99,102,241,0.2)', color: '#818cf8' }}>🎮 Story</span>
+                        <span style={{ ...styles.badge, background: '#eef2ff', color: '#4f46e5' }}>🎮 Story</span>
                       )}
                     </div>
                   </div>
@@ -374,7 +374,7 @@ export default function WordManager({ userId }) {
                       {[1, 2, 3, 4, 5].map(b => (
                         <div key={b} style={{
                           width: 8, height: 14, borderRadius: 2,
-                          background: b <= (p.leitner_box || 1) ? mc.color : 'rgba(255,255,255,0.15)',
+                          background: b <= (p.leitner_box || 1) ? mc.color : '#e2e8f0',
                         }} />
                       ))}
                     </div>
@@ -385,7 +385,7 @@ export default function WordManager({ userId }) {
                 <div style={{ ...styles.recBar, background: rc.bg }}>
                   <span style={{ color: rc.color, fontSize: 12, fontWeight: 600 }}>{rc.label}</span>
                   {p.interval_days > 0 && (
-                    <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 'auto' }}>
+                    <span style={{ color: '#64748b', fontSize: 11, fontWeight: 600, marginLeft: 'auto' }}>
                       Next review: {Math.round(p.interval_days)}d
                     </span>
                   )}
@@ -406,78 +406,83 @@ const styles = {
   center: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' },
   spinner: { fontSize: 40, animation: 'spin 1s linear infinite' },
   header: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
-  title: { margin: 0, fontSize: 22, fontWeight: 800, color: '#fff' },
-  subtitle: { margin: 0, fontSize: 13, color: '#cbd5e1' },
+  title: { margin: 0, fontSize: 24, fontWeight: 800, color: '#1e293b' },
+  subtitle: { margin: 0, fontSize: 13, color: '#475569' },
   summaryRow: { display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' },
   summaryCard: {
-    flex: '1 1 0', minWidth: 80, padding: '10px 14px', borderRadius: 12,
-    background: 'rgba(255,255,255,0.08)', border: '1px solid', textAlign: 'center',
+    flex: '1 1 0', minWidth: 90, padding: '12px 14px', borderRadius: 14,
+    background: '#fff', border: '2px solid', textAlign: 'center',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
   },
-  summaryNum: { display: 'block', fontSize: 22, fontWeight: 800, color: '#fff' },
-  summaryLabel: { fontSize: 11, color: '#94a3b8', fontWeight: 600 },
+  summaryNum: { display: 'block', fontSize: 26, fontWeight: 900, color: '#1e293b' },
+  summaryLabel: { fontSize: 12, color: '#64748b', fontWeight: 700 },
   alertBox: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-    borderRadius: 10, border: '1px solid', marginBottom: 10, fontSize: 13,
+    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
+    borderRadius: 12, border: '2px solid', marginBottom: 10, fontSize: 14,
+    background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   },
-  addRow: { display: 'flex', gap: 8, marginBottom: 8 },
+  addRow: { display: 'flex', gap: 8, marginBottom: 10 },
   input: {
-    flex: 1, padding: '10px 14px', borderRadius: 12,
-    border: '2px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)',
-    color: '#fff', fontSize: 16, outline: 'none', backdropFilter: 'blur(6px)',
+    flex: 1, padding: '12px 16px', borderRadius: 14,
+    border: '2px solid #cbd5e1', background: '#fff',
+    color: '#1e293b', fontSize: 17, outline: 'none', fontWeight: 500,
   },
   addBtn: {
-    padding: '10px 20px', borderRadius: 12, border: 'none',
+    padding: '12px 22px', borderRadius: 14, border: 'none',
     background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-    color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', whiteSpace: 'nowrap',
+    color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer', whiteSpace: 'nowrap',
+    boxShadow: '0 2px 8px rgba(34,197,94,0.3)',
   },
-  error: { color: '#f87171', fontSize: 13, margin: '4px 0 0 4px' },
+  error: { color: '#dc2626', fontSize: 14, fontWeight: 600, margin: '4px 0 0 4px' },
   controlRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
   viewTabs: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   viewTab: {
-    padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)',
-    background: 'rgba(255,255,255,0.08)', color: '#cbd5e1', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    padding: '8px 16px', borderRadius: 22, border: '2px solid #cbd5e1',
+    background: '#fff', color: '#475569', fontSize: 14, fontWeight: 700, cursor: 'pointer',
   },
   viewTabActive: {
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', border: '1px solid transparent',
+    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+    border: '2px solid transparent', boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
   },
   sortTab: {
-    padding: '4px 10px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)',
-    background: 'transparent', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    padding: '5px 12px', borderRadius: 14, border: '2px solid #e2e8f0',
+    background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer',
   },
-  sortTabActive: { background: 'rgba(255,255,255,0.15)', color: '#fff' },
+  sortTabActive: { background: '#334155', color: '#fff', border: '2px solid #334155' },
   empty: {
     textAlign: 'center', padding: 40, borderRadius: 16,
-    background: 'rgba(255,255,255,0.07)', border: '2px dashed rgba(255,255,255,0.2)',
+    background: '#fff', border: '2px dashed #cbd5e1',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
   },
-  list: { display: 'flex', flexDirection: 'column', gap: 10 },
+  list: { display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
-    display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px',
-    borderRadius: 14, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)',
-    border: '1px solid rgba(255,255,255,0.15)',
+    display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 18px',
+    borderRadius: 16, background: '#fff',
+    border: '1px solid #e2e8f0', boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardLeft: { display: 'flex', flexDirection: 'column', gap: 4 },
-  word: { fontSize: 20, fontWeight: 800, color: '#fff' },
+  cardLeft: { display: 'flex', flexDirection: 'column', gap: 6 },
+  word: { fontSize: 24, fontWeight: 900, color: '#1e293b', letterSpacing: 0.5 },
   badge: {
-    padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, display: 'inline-block',
+    padding: '3px 10px', borderRadius: 8, fontSize: 12, fontWeight: 800, display: 'inline-block',
   },
-  statsRow: { display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' },
-  statBlock: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 60 },
-  statLabel: { fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' },
-  statValue: { fontWeight: 700, color: '#fff' },
-  barBg: { width: 60, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)', overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 3, transition: 'width 0.5s ease' },
+  statsRow: { display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', padding: '6px 0' },
+  statBlock: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 65 },
+  statLabel: { fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue: { fontWeight: 800, color: '#1e293b' },
+  barBg: { width: 70, height: 8, borderRadius: 4, background: '#e2e8f0', overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4, transition: 'width 0.5s ease' },
   recBar: {
-    display: 'flex', alignItems: 'center', padding: '4px 10px', borderRadius: 8, gap: 6,
+    display: 'flex', alignItems: 'center', padding: '6px 12px', borderRadius: 10, gap: 6,
   },
   removeBtn: {
-    width: 30, height: 30, borderRadius: '50%', border: 'none',
-    background: 'rgba(239,68,68,0.25)', color: '#f87171', fontSize: 15,
-    fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: '50%', border: '2px solid #fca5a5',
+    background: '#fef2f2', color: '#dc2626', fontSize: 16,
+    fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   addSmallBtn: {
-    width: 30, height: 30, borderRadius: '50%', border: 'none',
-    background: 'rgba(34,197,94,0.25)', color: '#4ade80', fontSize: 15,
-    fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: '50%', border: '2px solid #86efac',
+    background: '#f0fdf4', color: '#16a34a', fontSize: 16,
+    fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 };
