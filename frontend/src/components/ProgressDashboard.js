@@ -90,7 +90,7 @@ const ProgressDashboard = ({ userId }) => {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="text-4xl animate-spin mb-3">📊</div>
-          <p className="text-white font-semibold animate-pulse">Analytics Loading...</p>
+          <p className="text-gray-700 font-semibold animate-pulse">Analytics Loading...</p>
         </div>
       </div>
     );
@@ -125,7 +125,7 @@ const ProgressDashboard = ({ userId }) => {
             className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
               activeSection === tab.key
                 ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg scale-105'
-                : 'bg-white/40 text-white hover:bg-white/60'
+                : 'bg-white/70 text-gray-600 hover:bg-white/90 shadow'
             }`}
           >
             {tab.label}
