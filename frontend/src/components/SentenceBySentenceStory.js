@@ -60,12 +60,23 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   // eslint-disable-next-line no-unused-vars
   const [isGazeTrackingActive, setIsGazeTrackingActive] = useState(true);
 
-  // Timer cleanup
+  // Track if session has been completed to avoid double-save
+  const sessionCompletedRef = useRef(false);
+  const hasAnsweredRef = useRef(false);
+
+  // Timer cleanup + auto-save session on unmount
   useEffect(() => {
     return () => {
       if (confirmTimerRef.current) clearInterval(confirmTimerRef.current);
+      // Auto-save session if user navigates away without clicking Finish
+      if (userId && hasAnsweredRef.current && !sessionCompletedRef.current) {
+        try {
+          const payload = JSON.stringify({ user_id: userId, include_trajectory: true });
+          navigator.sendBeacon(`${API_BASE_URL}/session/complete`, new Blob([payload], { type: 'application/json' }));
+        } catch (e) { /* best effort */ }
+      }
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     setHoveredOptionIndex(null);
@@ -121,6 +132,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
 
   const completeSession = useCallback(async () => {
     if (!userId) return;
+    sessionCompletedRef.current = true;
     try {
       await fetch(`${API_BASE_URL}/session/complete`, {
         method: 'POST',
@@ -130,19 +142,21 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     } catch (err) { console.warn('Session complete failed:', err); }
   }, [userId]);
 
-  const recordCognitiveLoad = useCallback((isCorrect, responseTime, difficultyLevel = 2) => {
+  const recordCognitiveLoad = useCallback(async (isCorrect, responseTime, difficultyLevel = 2) => {
     if (!userId) return;
     const wordDifficulty = Math.min(1.0, 0.2 + (difficultyLevel - 1) * 0.25);
-    fetch(`${API_BASE_URL}/cognitive-load/record`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: userId, response_time: responseTime, is_correct: isCorrect,
-        audio_replayed: false, help_requested: false, hesitated: responseTime > 5,
-        engagement_score: isCorrect ? 75 : 40, word_difficulty: wordDifficulty,
-        phoneme_count: 3, difficulty_level: difficultyLevel
-      })
-    }).catch(err => console.warn('Cognitive load record failed:', err));
+    try {
+      await fetch(`${API_BASE_URL}/cognitive-load/record`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId, response_time: responseTime, is_correct: isCorrect,
+          audio_replayed: false, help_requested: false, hesitated: responseTime > 5,
+          engagement_score: isCorrect ? 75 : 40, word_difficulty: wordDifficulty,
+          phoneme_count: 3, difficulty_level: difficultyLevel
+        })
+      });
+    } catch (err) { console.warn('Cognitive load record failed:', err); }
   }, [userId]);
 
   const recordSRSAnswer = useCallback((word, isCorrect, responseTime) => {
@@ -161,7 +175,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     ).catch(err => console.warn('SRS tracking failed:', err));
   }, [userId]);
 
-  const trackGaze = useCallback((optionIndex) => {
+  const trackGaze = useCallback(async (optionIndex) => {
     if (!userId) return;
     const positions = [
       { x: 0.15, y: 0.72 }, { x: 0.38, y: 0.72 },
@@ -169,16 +183,20 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     ];
     const pos = positions[optionIndex % 4] || { x: 0.5, y: 0.7 };
     const jitter = () => (Math.random() - 0.5) * 0.05;
-    fetch(`${API_BASE_URL}/track-gaze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, x: Math.max(0, Math.min(1, pos.x + jitter())), y: Math.max(0, Math.min(1, pos.y + jitter())), confidence: 0.85 })
-    }).catch(() => {});
-    fetch(`${API_BASE_URL}/track-gaze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, x: 0.5 + jitter(), y: 0.35 + jitter(), confidence: 0.9 })
-    }).catch(() => {});
+    try {
+      await Promise.all([
+        fetch(`${API_BASE_URL}/track-gaze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, x: Math.max(0, Math.min(1, pos.x + jitter())), y: Math.max(0, Math.min(1, pos.y + jitter())), confidence: 0.85 })
+        }),
+        fetch(`${API_BASE_URL}/track-gaze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, x: 0.5 + jitter(), y: 0.35 + jitter(), confidence: 0.9 })
+        })
+      ]);
+    } catch (err) { console.warn('Gaze tracking failed:', err); }
   }, [userId]);
 
   // =====================
@@ -198,7 +216,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   // =====================
   // GAME LOGIC
   // =====================
-  const handleAnswer = (selectedWord) => {
+  const handleAnswer = async (selectedWord) => {
     if (!currentSentence || answered) return;
 
     const correct = selectedWord === currentSentence.target_word;
@@ -206,6 +224,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     setSelectedAnswer(selectedWord);
     setAnswered(true);
     setShowFeedback(true);
+    hasAnsweredRef.current = true;
 
     // Children reaction
     setChildrenReaction(correct ? 'excited' : 'sad');
@@ -221,17 +240,22 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
 
     const responseTime = Date.now() / 1000 - (engagementTrackerRef.current?.responseStartTime || Date.now() / 1000);
     const rt = Math.max(0.5, responseTime);
-    recordSessionAnswer(currentSentence.target_word, correct, rt);
-    updatePerformance(correct, rt, storyData?.id || 0);
-    trackEngagementDirect(correct, rt);
-    recordCognitiveLoad(correct, rt, 2);
-    recordSRSAnswer(currentSentence.target_word, correct, rt);
+
+    // Fire all tracking calls in parallel and await them all
+    const trackingPromises = [
+      recordSessionAnswer(currentSentence.target_word, correct, rt),
+      updatePerformance(correct, rt, storyData?.id || 0),
+      trackEngagementDirect(correct, rt),
+      recordCognitiveLoad(correct, rt, 2),
+      recordSRSAnswer(currentSentence.target_word, correct, rt),
+    ];
+
     const optIdx = (currentSentence.options || []).indexOf(selectedWord);
-    trackGaze(optIdx >= 0 ? optIdx : 0);
+    trackingPromises.push(trackGaze(optIdx >= 0 ? optIdx : 0));
 
     // Phoneme tracking
     if (userId && currentSentence.target_word) {
-      try {
+      trackingPromises.push(
         fetch(`${API_BASE_URL}/track-phoneme-confusion`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -239,9 +263,12 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
             user_id: userId, target_word: currentSentence.target_word,
             selected_word: selectedWord, is_correct: correct
           })
-        }).catch(err => console.warn('Phoneme tracking failed:', err));
-      } catch (e) { /* non-critical */ }
+        }).catch(err => console.warn('Phoneme tracking failed:', err))
+      );
     }
+
+    // Wait for all tracking to complete (don't block UI feedback though)
+    Promise.allSettled(trackingPromises).catch(() => {});
 
     // Update stars
     if (correct) {
