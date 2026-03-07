@@ -246,7 +246,7 @@ _JSONB_COLUMNS = frozenset([
     'srs_state', 'cognitive_load_state', 'options', 'details',
     'most_confused_phonemes', 'improvement_areas',
     'contributing_factors', 'session_features', 'features',
-    'research_metrics',
+    'research_metrics', 'summary',
 ])
 
 
