@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-supabase
+psycopg2-binary
 google-generativeai
 python-dotenv
 requests
