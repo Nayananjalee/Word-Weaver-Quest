@@ -902,6 +902,107 @@ def update_score(request: UpdateScoreRequest):
 
 
 # --------------------------------------
+# WORD MANAGEMENT ENDPOINTS (Therapist adds/removes target words)
+# --------------------------------------
+
+class WordManageRequest(BaseModel):
+    user_id: str
+    word: str
+
+@app.get("/words/{user_id}")
+def get_words(user_id: str):
+    """Get user's difficult words list and per-word performance stats."""
+    try:
+        profile_res = supabase.table('profiles').select('difficult_words').eq('id', user_id).single().execute()
+        words = []
+        if profile_res.data:
+            raw = profile_res.data.get('difficult_words', [])
+            if isinstance(raw, str):
+                import json as _json
+                words = _json.loads(raw) if raw else []
+            else:
+                words = raw or []
+
+        # Gather per-word SRS stats if available
+        word_stats = {}
+        try:
+            engine = _get_or_create_srs(user_id)
+            for w in words:
+                if w in engine.cards:
+                    card = engine.cards[w]
+                    word_stats[w] = {
+                        "attempts": card.total_reviews,
+                        "correct": card.correct_reviews,
+                        "accuracy": round(card.correct_reviews / card.total_reviews * 100, 1) if card.total_reviews > 0 else 0,
+                        "easiness": round(card.easiness, 2),
+                        "interval_days": card.interval,
+                        "leitner_box": card.leitner_box,
+                    }
+                else:
+                    word_stats[w] = {"attempts": 0, "correct": 0, "accuracy": 0, "easiness": 2.5, "interval_days": 0, "leitner_box": 1}
+        except Exception:
+            pass
+
+        return {"words": words, "word_stats": word_stats}
+    except Exception as e:
+        print(f"Get words error: {e}")
+        return {"words": [], "word_stats": {}}
+
+@app.post("/words/add")
+def add_word(request: WordManageRequest):
+    """Add a difficult word for the child (therapist action)."""
+    try:
+        profile_res = supabase.table('profiles').select('difficult_words').eq('id', request.user_id).single().execute()
+        words = []
+        if profile_res.data:
+            raw = profile_res.data.get('difficult_words', [])
+            if isinstance(raw, str):
+                import json as _json
+                words = _json.loads(raw) if raw else []
+            else:
+                words = raw or []
+
+        word = request.word.strip()
+        if not word:
+            raise HTTPException(status_code=400, detail="Word cannot be empty")
+        if word in words:
+            return {"success": True, "words": words, "message": "Word already exists"}
+
+        words.append(word)
+        supabase.table('profiles').update({'difficult_words': words}).eq('id', request.user_id).execute()
+        return {"success": True, "words": words}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Add word error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/words/remove")
+def remove_word(request: WordManageRequest):
+    """Remove a difficult word from the child's list (therapist action)."""
+    try:
+        profile_res = supabase.table('profiles').select('difficult_words').eq('id', request.user_id).single().execute()
+        words = []
+        if profile_res.data:
+            raw = profile_res.data.get('difficult_words', [])
+            if isinstance(raw, str):
+                import json as _json
+                words = _json.loads(raw) if raw else []
+            else:
+                words = raw or []
+
+        word = request.word.strip()
+        if word in words:
+            words.remove(word)
+
+        supabase.table('profiles').update({'difficult_words': words}).eq('id', request.user_id).execute()
+        return {"success": True, "words": words}
+    except Exception as e:
+        print(f"Remove word error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------------------------
 # SYSTEM HEALTH & TESTING
 # --------------------------------------
 
