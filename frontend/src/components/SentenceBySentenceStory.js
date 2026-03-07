@@ -101,18 +101,19 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     } catch (err) { console.warn('Session recording failed:', err); }
   }, [userId]);
 
-  const updatePerformance = useCallback(async (isCorrect, responseTime, storyId = 0) => {
+  const updatePerformance = useCallback(async (isCorrect, responseTime, storyId = 0, word = '') => {
     if (!userId) return;
     try {
-      fetch(`${API_BASE_URL}/update-performance`, {
+      await fetch(`${API_BASE_URL}/update-performance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId, story_id: storyId, is_correct: isCorrect,
-          response_time: responseTime, engagement_score: 50, difficulty_level: 2
+          response_time: responseTime, engagement_score: 50, difficulty_level: 2,
+          word: word
         })
-      }).catch(err => console.warn('Performance update failed:', err));
-    } catch (e) { /* non-critical */ }
+      });
+    } catch (e) { console.warn('Performance update failed:', e); }
   }, [userId]);
 
   const trackEngagementDirect = useCallback(async (isCorrect, responseTime) => {
@@ -159,20 +160,29 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     } catch (err) { console.warn('Cognitive load record failed:', err); }
   }, [userId]);
 
-  const recordSRSAnswer = useCallback((word, isCorrect, responseTime) => {
+  const recordSRSAnswer = useCallback(async (word, isCorrect, responseTime, selectedWord = null) => {
     if (!userId || !word) return;
-    const quality = isCorrect ? (responseTime < 3 ? 5 : responseTime < 6 ? 4 : 3) : 1;
-    fetch(`${API_BASE_URL}/srs/add-word`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, word, phonemes: null, difficulty_class: 'medium' })
-    }).then(() =>
-      fetch(`${API_BASE_URL}/srs/review`, {
+    // SM-2 quality: 0=complete blackout, 1=wrong, 2=wrong but close, 3=correct with difficulty, 4=correct with hesitation, 5=perfect recall
+    // Research: Wozniak (1990) SuperMemo SM-2 algorithm quality grades
+    let quality;
+    if (!isCorrect) {
+      quality = responseTime < 3 ? 1 : 0;  // Quick wrong = recognized but failed; slow wrong = blackout
+    } else {
+      quality = responseTime < 2 ? 5 : responseTime < 4 ? 4 : 3;  // Fast=perfect, medium=good, slow=difficult
+    }
+    const confusedWith = (!isCorrect && selectedWord && selectedWord !== word) ? selectedWord : null;
+    try {
+      await fetch(`${API_BASE_URL}/srs/add-word`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, word, quality, response_time: responseTime, confused_with: null })
-      })
-    ).catch(err => console.warn('SRS tracking failed:', err));
+        body: JSON.stringify({ user_id: userId, word, phonemes: null, difficulty_class: 'medium' })
+      });
+      await fetch(`${API_BASE_URL}/srs/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, word, quality, response_time: responseTime, confused_with: confusedWith })
+      });
+    } catch (err) { console.warn('SRS tracking failed:', err); }
   }, [userId]);
 
   const trackGaze = useCallback(async (optionIndex) => {
@@ -244,10 +254,10 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     // Fire all tracking calls in parallel and await them all
     const trackingPromises = [
       recordSessionAnswer(currentSentence.target_word, correct, rt),
-      updatePerformance(correct, rt, storyData?.id || 0),
+      updatePerformance(correct, rt, storyData?.id || 0, currentSentence.target_word),
       trackEngagementDirect(correct, rt),
       recordCognitiveLoad(correct, rt, 2),
-      recordSRSAnswer(currentSentence.target_word, correct, rt),
+      recordSRSAnswer(currentSentence.target_word, correct, rt, selectedWord),
     ];
 
     const optIdx = (currentSentence.options || []).indexOf(selectedWord);
