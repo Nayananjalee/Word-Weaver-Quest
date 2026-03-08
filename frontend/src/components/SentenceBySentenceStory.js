@@ -52,6 +52,7 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
   // ─── Webcam preview ref ───
   const previewVideoRef = useRef(null);
   const gestureLoopRef = useRef(null);
+  const handleGestureUpdateRef = useRef(null); // always points to latest handleGestureUpdate
   const { stream, isInitialized: cameraReady } = useSharedCamera();
 
   // Ref callback: re-attach camera stream every time React creates a new <video> element
@@ -64,6 +65,11 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     }
   }, [stream]);
 
+  // Keep ref always pointing to latest handleGestureUpdate (avoids stale closures in rAF loop)
+  useEffect(() => {
+    handleGestureUpdateRef.current = handleGestureUpdate;
+  }, [handleGestureUpdate]);
+
   // Run gesture recognition loop when gesture mode is active
   useEffect(() => {
     if (!useGesture || !stream || !cameraReady) {
@@ -72,32 +78,35 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     }
 
     let running = true;
-    const runLoop = async () => {
+    const runLoop = () => {
+      if (!running) return;
       const recognizer = gestureService.getSync();
-      if (!recognizer || !previewVideoRef.current || !running) return;
-      try {
-        const result = recognizer.recognizeForVideo(previewVideoRef.current, Date.now());
-        if (result?.gestures?.length > 0 && result.landmarks?.length > 0) {
-          const fingers = countFingers(result.landmarks[0]);
-          setDetectedFingers(fingers);
-          handleGestureUpdate(fingers);
-        } else {
-          setDetectedFingers(0);
-          handleGestureUpdate(0);
-        }
-      } catch (e) { /* ignore frame errors */ }
-      if (running) gestureLoopRef.current = requestAnimationFrame(runLoop);
+      // If recognizer or video not ready yet, keep looping — do NOT return permanently
+      if (recognizer && previewVideoRef.current) {
+        try {
+          const result = recognizer.recognizeForVideo(previewVideoRef.current, Date.now());
+          if (result?.gestures?.length > 0 && result.landmarks?.length > 0) {
+            const fingers = countFingers(result.landmarks[0]);
+            setDetectedFingers(fingers);
+            handleGestureUpdateRef.current?.(fingers);
+          } else {
+            setDetectedFingers(0);
+            handleGestureUpdateRef.current?.(0);
+          }
+        } catch (e) { /* ignore frame errors */ }
+      }
+      // Always schedule next frame so loop never permanently dies during question transitions
+      gestureLoopRef.current = requestAnimationFrame(runLoop);
     };
 
-    // Start after a short delay to let video initialize
-    const startTimeout = setTimeout(() => { if (running) runLoop(); }, 500);
+    // Short delay to let video element mount
+    const startTimeout = setTimeout(() => { if (running) runLoop(); }, 300);
     return () => {
       running = false;
       clearTimeout(startTimeout);
-      if (gestureLoopRef.current) cancelAnimationFrame(gestureLoopRef.current);
+      if (gestureLoopRef.current) { cancelAnimationFrame(gestureLoopRef.current); gestureLoopRef.current = null; }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useGesture, stream, cameraReady, answered, currentSentenceIndex]);
+  }, [useGesture, stream, cameraReady]);
 
   // Count extended fingers from MediaPipe landmarks
   const countFingers = (landmarks) => {
