@@ -75,8 +75,8 @@ user_srs_engines = {}
 tts_cache = {}  # key: hash(text) → value: base64 WAV string
 TTS_CACHE_MAX = 200  # evict oldest if cache grows beyond this
 
-# Thread pool for parallel TTS generation
-tts_executor = ThreadPoolExecutor(max_workers=4)
+# Thread pool for parallel TTS generation (2 workers to respect Gemini rate limits)
+tts_executor = ThreadPoolExecutor(max_workers=2)
 
 # ================================================================================
 # MIDDLEWARE — CORS
@@ -180,9 +180,9 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     Generate a Sinhala story AND format it as game JSON in a SINGLE Gemini call.
 
     Returns the raw JSON string directly (no second formatting call needed).
-    Uses gemini-2.0-flash for speed.
+    Uses gemini-3.1-pro-preview for best Sinhala quality.
     """
-    print(f"🔄 Using Gemini 2.0 Flash for story generation...")
+    print(f"🔄 Using Gemini 3.1 Pro Preview for story generation...")
 
     word_list = [w.strip() for w in keywords.split(',') if w.strip()]
     num_words = len(word_list)
@@ -227,11 +227,11 @@ RETURN ONLY THIS JSON (no markdown, no explanation):
   ]
 }}"""
 
-    max_retries = 2
+    max_retries = 3
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-3.1-pro-preview',
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7 if attempt == 0 else 0.3,
@@ -525,10 +525,10 @@ def generate_audio_with_gemini(text: str) -> bytes:
 
 async def pregenerate_tts_for_story(sentences: list) -> dict:
     """
-    Pre-generate TTS audio for all sentences in parallel using ThreadPoolExecutor.
+    Pre-generate TTS audio for all sentences using ThreadPoolExecutor.
     Returns dict mapping sentence text → base64 WAV string.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     results = {}
 
     async def gen_one(text):
@@ -540,9 +540,13 @@ async def pregenerate_tts_for_story(sentences: list) -> dict:
             return text, None
 
     tasks = [gen_one(s['text']) for s in sentences if s.get('text')]
-    completed = await asyncio.gather(*tasks)
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
 
-    for text, audio_b64 in completed:
+    for item in completed:
+        if isinstance(item, Exception):
+            print(f"⚠️ TTS pre-gen task exception: {item}")
+            continue
+        text, audio_b64 = item
         if audio_b64:
             results[text] = audio_b64
 
@@ -651,7 +655,7 @@ async def get_story(request: StoryRequest):
 
         # --- 3. Generate story + quiz JSON in ONE call ---
         print("\n" + "=" * 60)
-        print("STORY GENERATION PIPELINE (Gemini 2.0 Flash — single call)")
+        print("STORY GENERATION PIPELINE (Gemini 3.1 Pro — single call)")
         print("=" * 60)
 
         game_json = generate_story_with_gemini_fallback(keywords, request.topic)
