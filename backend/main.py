@@ -730,12 +730,16 @@ async def get_story(request: StoryRequest):
             raise HTTPException(status_code=500, detail="Story formatting produced no valid sentences")
 
         # --- 6. Pre-generate TTS for all sentences in parallel ---
-        print("🔊 Pre-generating TTS audio for all sentences...")
-        try:
-            audio_map = await pregenerate_tts_for_story(validated)
-        except Exception as e:
-            print(f"⚠️ TTS pre-generation failed, frontend will fetch on-demand: {e}")
-            audio_map = {}
+        # print("🔊 Pre-generating TTS audio for all sentences...")
+        # try:
+        #     audio_map = await pregenerate_tts_for_story(validated)
+        # except Exception as e:
+        #     print(f"⚠️ TTS pre-generation failed, frontend will fetch on-demand: {e}")
+        #     audio_map = {}
+
+        # RAM ඉතුරු කරගැනීමට Pre-generation නවත්වා ඇත — frontend on-demand fetch කරයි
+        print("⏭️ Skipping TTS pre-gen to save RAM. Frontend will fetch on-demand.")
+        audio_map = {}
 
         # --- 7. Save to DB & return ---
         full_text = " ".join([s['text'] for s in validated])
