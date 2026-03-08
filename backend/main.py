@@ -184,86 +184,79 @@ def _get_or_create_srs(user_id: str) -> SpacedRepetitionEngine:
 
 def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     """
-    Generate a Sinhala story AND format it as game JSON in a SINGLE Gemini call.
-
-    Returns the raw JSON string directly (no second formatting call needed).
-    Uses gemini-3.1-pro-preview for best Sinhala quality.
-    response_mime_type="application/json" forces pure JSON output — no markdown, no reasoning.
+    Two-step Architecture:
+    1. Generator: Uses Gemini 3.1 Pro for high-quality Sinhala story writing.
+    2. Formatter: Uses Gemini 2.5 Flash for lightning-fast JSON structuring.
     """
-    print(f"🔄 Using Gemini 3.1 Pro Preview for story generation...")
+    print(f"✍️ Step 1: Writing beautiful Sinhala story using Gemini 3.1 Pro...")
 
-    word_list = [w.strip() for w in keywords.split(',') if w.strip()]
-    num_words = len(word_list)
-    min_sentences = max(5, num_words * 2)
-    max_sentences = max(8, num_words * 3)
+    topic_instruction = f"මාතෘකාව: {topic}" if topic else ""
 
-    topic_instruction = f"\nStory setting/theme: {topic}" if topic else ""
+    # --- STEP 1: STORY GENERATION (GEMINI 3.1 PRO) ---
+    story_prompt = f"""ඔබ ශ්‍රව්‍යාබාධිත කුඩා දරුවන්ට කතා ලියන විශේෂඥයෙකි.
+පහත වචන අනිවාර්යයෙන්ම භාවිතා කර, වාක්‍ය 4-6 කින් යුත් ඉතා සරල, ලස්සන සිංහල කතාවක් ලියන්න. 
+වචන: {keywords}
+{topic_instruction}
+(කරුණාකර කතාව පමණක් ලබා දෙන්න. වෙනත් කිසිදු විස්තරයක් අවශ්‍ය නැත)"""
 
-    prompt = f"""You are an expert Sinhala children's story writer.
-TARGET WORDS: {keywords}{topic_instruction}
+    try:
+        story_response = client.models.generate_content(
+            model='gemini-3.1-pro-preview',
+            contents=story_prompt,
+            config=types.GenerateContentConfig(temperature=0.7, max_output_tokens=1000)
+        )
+        raw_story = story_response.text.strip()
 
-TASK: Write a fun Sinhala story ({min_sentences}-{max_sentences} sentences) using the target words, formatted STRICTLY as the JSON below.
+        if not raw_story or len(raw_story) < 20:
+            raise ValueError("Story generation failed or too short.")
 
+        print(f"✅ Story written successfully:\n{raw_story}\n")
+
+    except Exception as e:
+        print(f"❌ Step 1 (Pro Writer) Failed: {e}")
+        return None
+
+    # --- STEP 2: JSON FORMATTING (GEMINI 2.5 FLASH) ---
+    print(f"⚡ Step 2: Formatting to JSON using Gemini 2.5 Flash...")
+
+    format_prompt = f"""Here is a Sinhala story:
+"{raw_story}"
+
+Convert this into a quiz JSON format.
 RULES:
-1. ABSOLUTELY NO REASONING, NO THINKING OUT LOUD, NO EXPLANATIONS. OUTPUT ONLY PURE JSON.
-2. Each target word MUST appear in the story.
-3. Keep sentences SHORT (5-8 Sinhala words).
-4. For each sentence, define a "target_word" (use the given target words, or a noun/verb).
-5. Generate exactly 3 phonetically similar Sinhala distractors.
-6. "options" array must contain the 1 correct word + 3 distractors in random order.
+1. Break into sentences.
+2. Each sentence needs a "target_word" (pick an important noun/verb from the sentence).
+3. Generate 3 phonetically similar Sinhala distractor words.
+4. "options" = [target_word + 3 distractors] in random order.
 
-JSON FORMAT:
+JSON SCHEMA:
 {{
   "story_sentences": [
     {{
-      "text": "අම්මා අද කාර්යාලය නිම වී ගෙදර ආවා.",
+      "text": "sentence text",
       "has_target_word": true,
-      "target_word": "කාර්යාලය",
-      "options": ["කාර්යාලය", "විද්‍යාලය", "කාරණය", "කාර්යය"]
+      "target_word": "word",
+      "options": ["opt1", "opt2", "opt3", "opt4"]
     }}
   ]
-}}
-"""
+}}"""
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.1-pro-preview',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.4,
-                    max_output_tokens=4096,
-                    response_mime_type="application/json"
-                )
+    try:
+        json_response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=format_prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                response_mime_type="application/json"
             )
-            raw_text = response.text.strip()
-            print(f"📄 Gemini response (attempt {attempt + 1}, {len(raw_text)} chars): {raw_text[:200]}...")
+        )
+        json_text = json_response.text.strip()
+        print("✅ JSON formatted successfully!")
+        return json_text
 
-            if raw_text and len(raw_text) > 50:
-                try:
-                    # response_mime_type guarantees pure JSON — parse directly
-                    parsed = json.loads(raw_text)
-                    sentences = parsed.get('story_sentences', parsed if isinstance(parsed, list) else [])
-                    if isinstance(parsed, list):
-                        sentences = parsed
-                    if len(sentences) >= 3:
-                        print(f"✅ Story + JSON generated successfully ({len(sentences)} sentences)")
-                        return raw_text
-                    else:
-                        print(f"⚠️ Only {len(sentences)} sentences, retrying...")
-                except json.JSONDecodeError as e:
-                    print(f"⚠️ JSON Parse Error (attempt {attempt + 1}): {e}")
-            else:
-                print(f"⚠️ Gemini returned insufficient content (attempt {attempt + 1}): '{raw_text[:100]}'")
-        except Exception as e:
-            print(f"❌ Gemini error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
-
-        if attempt < max_retries - 1:
-            time.sleep(2)
-
-    print("❌ All Gemini attempts failed")
-    return None
+    except Exception as e:
+        print(f"❌ Step 2 (Flash Formatter) Failed: {e}")
+        return None
 
 # ================================================================================
 # HELPER — Story generation (SinLlama on HuggingFace)
