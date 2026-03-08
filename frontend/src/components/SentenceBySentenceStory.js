@@ -127,7 +127,10 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     setHoveredOptionIndex(null);
     setConfirmProgress(0);
     setDetectedFingers(0);
-    if (confirmTimerRef.current) clearInterval(confirmTimerRef.current);
+    if (confirmTimerRef.current) { clearInterval(confirmTimerRef.current); confirmTimerRef.current = null; }
+    // CRITICAL: reset stale refs so Q2+ can start a fresh hover for any finger count
+    hoveredOptionRef.current = null;
+    confirmStartTimeRef.current = null;
   }, [currentSentenceIndex, answered]);
 
   // ─── Derived state (safe to compute even when used in hooks below early returns) ───
@@ -416,242 +419,208 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
   }
 
   // ═══════════════════════════════════════
-  // RENDER: QUESTION PHASE (answer selection)
+  // RENDER: QUESTION + LISTEN PHASES (unified — keeps StorytellingScene & video mounted)
   // ═══════════════════════════════════════
-  if (showQuestion && currentSentence.has_target_word) {
-    return (
-      <StorytellingScene isSpeaking={isSpeaking} childrenReaction={childrenReaction}
-        celebrationType={celebrationType} storyProgress={storyProgress}
-        earnedStars={earnedStars} totalQuestions={totalQuestions}
-        currentSentence={currentSentenceIndex + 1} totalSentences={storyData.story_sentences.length}
-      >
-        {/* Sentence + question prompt — stacked vertically for full visibility */}
-        <div className="question-phase-layout">
-          <div className="story-bubble-container question-phase-bubble">
-            <div className="story-speech-bubble">
-              <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
-              <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
-              <div className="bubble-story-text">
-                {answered ? (
-                  // After answering: show full sentence with the correct word highlighted
-                  (() => {
-                    const parts = getRevealedParts();
-                    if (parts) {
-                      return (
-                        <>
-                          {parts.before}
-                          <span className={`revealed-word ${isCorrect ? 'revealed-correct' : 'revealed-wrong'}`}>
-                            {parts.word}
-                          </span>
-                          {parts.after}
-                        </>
-                      );
-                    }
-                    return getDisplayText();
-                  })()
-                ) : (
-                  // Before answering: show blank
-                  getDisplayText().split('____').map((part, i, arr) => (
+  const inQuestionPhase = showQuestion && currentSentence.has_target_word;
+
+  return (
+    <StorytellingScene
+      isSpeaking={isSpeaking}
+      childrenReaction={childrenReaction}
+      celebrationType={inQuestionPhase ? celebrationType : null}
+      storyProgress={storyProgress}
+      earnedStars={earnedStars}
+      totalQuestions={totalQuestions}
+      currentSentence={currentSentenceIndex + 1}
+      totalSentences={storyData.story_sentences.length}
+    >
+
+      {/* ── QUESTION PHASE content ── */}
+      {inQuestionPhase && (
+        <>
+          <div className="question-phase-layout">
+            <div className="story-bubble-container question-phase-bubble">
+              <div className="story-speech-bubble">
+                <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
+                <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
+                <div className="bubble-story-text">
+                  {answered ? (
+                    (() => {
+                      const parts = getRevealedParts();
+                      if (parts) {
+                        return (
+                          <>
+                            {parts.before}
+                            <span className={`revealed-word ${isCorrect ? 'revealed-correct' : 'revealed-wrong'}`}>
+                              {parts.word}
+                            </span>
+                            {parts.after}
+                          </>
+                        );
+                      }
+                      return getDisplayText();
+                    })()
+                  ) : (
+                    getDisplayText().split('____').map((part, i, arr) => (
+                      <React.Fragment key={i}>
+                        {part}{i < arr.length - 1 && <span className="blank-space" />}
+                      </React.Fragment>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="question-prompt-row">
+              <div className="question-text">👂 ඔබට ඇහුණු වචනය කුමක්ද?</div>
+              <button className="relisten-btn" onClick={handleListen}>🔊 නැවත අහන්න</button>
+            </div>
+          </div>
+
+          {answered && (
+            <div className="feedback-toast">
+              <span className="feedback-emoji">{isCorrect ? '🎉' : '💪'}</span>
+              <span className="feedback-text">
+                {isCorrect ? 'හරි! ඉතා හොඳයි!' : `නිවැරදි පිළිතුර: ${currentSentence.target_word}`}
+              </span>
+            </div>
+          )}
+
+          {!answered && (
+            <div className="answer-options-container">
+              {currentSentence.options?.map((option, index) => {
+                const isHovered = hoveredOptionIndex === index;
+                const showProg = isHovered && confirmTimerRef.current !== null;
+                return (
+                  <div key={index} className="answer-option-card"
+                    onClick={() => !useGesture && handleAnswer(option)}
+                    style={{ cursor: useGesture ? 'default' : 'pointer' }}
+                  >
+                    {showProg && (
+                      <div className="option-progress-bg">
+                        <div className="option-progress-fill" style={{ height: `${confirmProgress}%` }} />
+                      </div>
+                    )}
+                    <div className="option-number">{index + 1}</div>
+                    <div className="option-text">{option}</div>
+                    {showProg && (
+                      <div className="option-progress-ring">
+                        <svg width="50" height="50" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                          <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(156,39,176,0.2)" strokeWidth="3" />
+                          <circle cx="18" cy="18" r="15" fill="none" stroke="#9c27b0" strokeWidth="3"
+                            strokeDasharray={`${(confirmProgress / 100) * 94.2} 94.2`} strokeLinecap="round" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {answered && (
+            <div className="answered-bottom-section">
+              <div className="answered-options-row">
+                {currentSentence.options?.map((option, index) => (
+                  <div key={index} className={`answer-option-card ${
+                    option === currentSentence.target_word ? 'correct'
+                      : option === selectedAnswer ? 'incorrect' : 'revealed'
+                  }`}>
+                    <div className="option-number">{index + 1}</div>
+                    <div className="option-text">{option}</div>
+                  </div>
+                ))}
+              </div>
+              <button className="next-sentence-btn answered-next" onClick={moveToNext}>
+                {isLastSentence ? '🎉 ප්‍රතිඵල' : '➡️ ඊළඟ'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── LISTEN PHASE content ── */}
+      {!inQuestionPhase && (
+        <>
+          {hasListened && (
+            <div className="story-bubble-container">
+              <div className="story-speech-bubble">
+                <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
+                <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
+                <div className="bubble-sparkle" style={{ bottom: -5, right: 30, animationDelay: '2s' }}>🌟</div>
+                <div className="bubble-story-text">
+                  {getDisplayText().split('____').map((part, i, arr) => (
                     <React.Fragment key={i}>
                       {part}{i < arr.length - 1 && <span className="blank-space" />}
                     </React.Fragment>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="question-prompt-row">
-            <div className="question-text">👂 ඔබට ඇහුණු වචනය කුමක්ද?</div>
-            <button className="relisten-btn" onClick={handleListen}>🔊 නැවත අහන්න</button>
-          </div>
-        </div>
-
-        {/* Feedback display — stays visible until child clicks Next */}
-        {answered && (
-          <div className="feedback-toast">
-            <span className="feedback-emoji">{isCorrect ? '🎉' : '💪'}</span>
-            <span className="feedback-text">
-              {isCorrect
-                ? 'හරි! ඉතා හොඳයි!'
-                : `නිවැරදි පිළිතුර: ${currentSentence.target_word}`}
-            </span>
-          </div>
-        )}
-
-        {/* Answer options — before answering */}
-        {!answered && (
-          <div className="answer-options-container">
-            {currentSentence.options?.map((option, index) => {
-              const isHovered = hoveredOptionIndex === index;
-              const showProg = isHovered && confirmTimerRef.current !== null;
-              return (
-                <div key={index} className="answer-option-card"
-                  onClick={() => !useGesture && handleAnswer(option)}
-                  style={{ cursor: useGesture ? 'default' : 'pointer' }}
-                >
-                  {showProg && (
-                    <div className="option-progress-bg">
-                      <div className="option-progress-fill" style={{ height: `${confirmProgress}%` }} />
-                    </div>
-                  )}
-                  <div className="option-number">{index + 1}</div>
-                  <div className="option-text">{option}</div>
-                  {showProg && (
-                    <div className="option-progress-ring">
-                      <svg width="50" height="50" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
-                        <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(156,39,176,0.2)" strokeWidth="3" />
-                        <circle cx="18" cy="18" r="15" fill="none" stroke="#9c27b0" strokeWidth="3"
-                          strokeDasharray={`${(confirmProgress / 100) * 94.2} 94.2`} strokeLinecap="round" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Webcam preview — visible when gesture mode is on */}
-        {useGesture && (
-          <div style={{
-            position: 'fixed', bottom: 16, right: 16, zIndex: 1000,
-            width: 180, height: 135, borderRadius: 16,
-            overflow: 'hidden', border: '3px solid rgba(156,39,176,0.7)',
-            boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
-            background: '#1a1a2e'
-          }}>
-            <video ref={videoRefCallback} autoPlay playsInline muted
-              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              background: 'rgba(0,0,0,0.6)', color: 'white',
-              textAlign: 'center', fontSize: 12, padding: '2px 4px'
-            }}>
-              {detectedFingers > 0 ? `☝️ ${detectedFingers} ඇඟිලි` : '✋ ඇඟිලි පෙන්වන්න'}
-            </div>
-          </div>
-        )}
-
-        {/* Gesture mode toggle */}
-        <div className="gesture-mode-badge">
-          <button className="gesture-toggle-btn" onClick={() => setUseGesture(!useGesture)}>
-            {useGesture ? '🖱️ බොත්තම්' : '🖐️ ඇඟිලි'}
-          </button>
-          {useGesture && hoveredOptionIndex !== null && (
-            <span className="gesture-live-indicator">☝️ {hoveredOptionIndex + 1} තෝරාගෙන...</span>
           )}
-        </div>
 
-        {/* After answering — highlight correct/incorrect + next button */}
-        {answered && (
-          <div className="answered-bottom-section">
-            <div className="answered-options-row">
-              {currentSentence.options?.map((option, index) => (
-                <div key={index} className={`answer-option-card ${
-                  option === currentSentence.target_word ? 'correct'
-                    : option === selectedAnswer ? 'incorrect' : 'revealed'
-                }`}>
-                  <div className="option-number">{index + 1}</div>
-                  <div className="option-text">{option}</div>
+          <div className="listen-phase-content">
+            {!hasListened && (
+              <>
+                <div className="listen-instruction">🎵 අහන්න... දේවදූතයා කතාව කියනවා!</div>
+                <button className="magical-listen-btn" onClick={handleListen}>
+                  <span className="btn-shine" />🔊 අහන්න - Listen
+                </button>
+              </>
+            )}
+            {hasListened && (
+              <>
+                {currentSentence.has_target_word && (
+                  <div className="listen-instruction" style={{ marginBottom: 8 }}>
+                    📝 ____ තැන කුමක් තිබේ දැයි ඔබට අසන්නේ ද?
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button className="magical-listen-btn" onClick={handleListen}
+                    style={{ padding: '12px 24px', fontSize: '1rem' }}>
+                    <span className="btn-shine" />🔊 නැවත අහන්න
+                  </button>
+                  <button className="magical-listen-btn" onClick={handleShowQuestion}
+                    style={{ padding: '12px 24px', fontSize: '1rem', background: 'linear-gradient(135deg, #00e676, #00c853, #00a843)' }}>
+                    <span className="btn-shine" />
+                    {currentSentence.has_target_word ? '✅ පිළිතුරු දෙන්න' : '➡️ ඊළඟ වාක්‍යය'}
+                  </button>
                 </div>
-              ))}
-            </div>
-            <button className="next-sentence-btn answered-next" onClick={moveToNext}>
-              {isLastSentence ? '🎉 ප්‍රතිඵල' : '➡️ ඊළඟ'}
-            </button>
+              </>
+            )}
           </div>
-        )}
-
-      </StorytellingScene>
-    );
-  }
-
-  // ═══════════════════════════════════════
-  // RENDER: LISTENING PHASE
-  // ═══════════════════════════════════════
-  return (
-    <StorytellingScene isSpeaking={isSpeaking} childrenReaction={childrenReaction}
-      storyProgress={storyProgress} earnedStars={earnedStars} totalQuestions={totalQuestions}
-      currentSentence={currentSentenceIndex + 1} totalSentences={storyData.story_sentences.length}
-    >
-      {/* Show sentence text once child has listened */}
-      {hasListened && (
-        <div className="story-bubble-container">
-          <div className="story-speech-bubble">
-            <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
-            <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
-            <div className="bubble-sparkle" style={{ bottom: -5, right: 30, animationDelay: '2s' }}>🌟</div>
-            <div className="bubble-story-text">
-              {getDisplayText().split('____').map((part, i, arr) => (
-                <React.Fragment key={i}>
-                  {part}{i < arr.length - 1 && <span className="blank-space" />}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* Center: Listen / Answer buttons */}
-      <div className="listen-phase-content">
-        {!hasListened && (
-          <>
-            <div className="listen-instruction">🎵 අහන්න... දේවදූතයා කතාව කියනවා!</div>
-            <button className="magical-listen-btn" onClick={handleListen}>
-              <span className="btn-shine" />🔊 අහන්න - Listen
-            </button>
-          </>
-        )}
-        {hasListened && (
-          <>
-            {currentSentence.has_target_word && (
-              <div className="listen-instruction" style={{ marginBottom: 8 }}>
-                📝 ____ තැන කුමක් තිබේ දැයි ඔබට අසන්නේ ද?
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button className="magical-listen-btn" onClick={handleListen}
-                style={{ padding: '12px 24px', fontSize: '1rem' }}>
-                <span className="btn-shine" />🔊 නැවත අහන්න
-              </button>
-              <button className="magical-listen-btn" onClick={handleShowQuestion}
-                style={{ padding: '12px 24px', fontSize: '1rem', background: 'linear-gradient(135deg, #00e676, #00c853, #00a843)' }}>
-                <span className="btn-shine" />
-                {currentSentence.has_target_word ? '✅ පිළිතුරු දෙන්න' : '➡️ ඊළඟ වාක්‍යය'}
-              </button>
-            </div>
-          </>
-        )}
+      {/* ── SINGLE PERSISTENT webcam overlay — never unmounts during phase transitions ── */}
+      <div style={{
+        position: 'fixed', bottom: 16, right: 16, zIndex: 1000,
+        width: 180, height: 135, borderRadius: 16,
+        overflow: 'hidden', border: '3px solid rgba(156,39,176,0.7)',
+        boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
+        background: '#1a1a2e',
+        display: useGesture ? 'block' : 'none',
+      }}>
+        <video ref={videoRefCallback} autoPlay playsInline muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          background: 'rgba(0,0,0,0.6)', color: 'white',
+          textAlign: 'center', fontSize: 12, padding: '2px 4px'
+        }}>
+          {detectedFingers > 0 ? `☝️ ${detectedFingers} ඇඟිලි` : '✋ ඇඟිලි පෙන්වන්න'}
+        </div>
       </div>
 
-      {/* Webcam preview — visible when gesture mode is on */}
-      {useGesture && (
-        <div style={{
-          position: 'fixed', bottom: 16, right: 16, zIndex: 1000,
-          width: 180, height: 135, borderRadius: 16,
-          overflow: 'hidden', border: '3px solid rgba(156,39,176,0.7)',
-          boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
-          background: '#1a1a2e'
-        }}>
-          <video ref={videoRefCallback} autoPlay playsInline muted
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'rgba(0,0,0,0.6)', color: 'white',
-            textAlign: 'center', fontSize: 12, padding: '2px 4px'
-          }}>
-            {detectedFingers > 0 ? `☝️ ${detectedFingers} ඇඟිලි` : '✋ ඇඟිලි පෙන්වන්න'}
-          </div>
-        </div>
-      )}
-
-      {/* Gesture toggle */}
+      {/* ── Gesture toggle + live indicator ── */}
       <div className="gesture-mode-badge">
         <button className="gesture-toggle-btn" onClick={() => setUseGesture(!useGesture)}>
           {useGesture ? '🖱️ බොත්තම්' : '🖐️ ඇඟිලි'}
         </button>
+        {useGesture && inQuestionPhase && hoveredOptionIndex !== null && (
+          <span className="gesture-live-indicator">☝️ {hoveredOptionIndex + 1} තෝරාගෙන...</span>
+        )}
       </div>
+
     </StorytellingScene>
   );
 }
