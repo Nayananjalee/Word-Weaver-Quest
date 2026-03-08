@@ -193,24 +193,20 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     topic_instruction = f"මාතෘකාව: {topic}" if topic else ""
 
     # --- STEP 1: STORY GENERATION (GEMINI 3.1 PRO) ---
-    story_prompt = f"""ඔබ ශ්‍රව්‍යාබාධිත කුඩා දරුවන්ට කතා ලියන විශේෂඥයෙකි.
-පහත නීති දැඩිව අනුගමනය කරමින් සිංහල කතාවක් ලියන්න:
-1. අනිවාර්යයෙන්ම වාක්‍ය 5 ත් 8 ත් අතර ප්‍රමාණයක් තිබිය යුතුය.
-2. මෙය සැබෑ කතාවක් විය යුතුය. පැහැදිලි ආරම්භයක් සහ අවසානයක් තිබිය යුතුය.
-3. පහත වචන සියල්ලම කතාව තුළ අනිවාර්යයෙන්ම භාවිතා කරන්න: {keywords}
-4. {topic_instruction}
+    story_prompt = f"""Write a beautiful, simple Sinhala children's story using ALL of these exact words: {keywords}
+{topic_instruction}
 
-පහත දක්වා ඇති "ආදර්ශමත් කතාවේ" (Exemplary Story) රටාවට, සරල බවට සහ ගුණධර්මවලට (Moral) සමාන වන සේ ඔබේ අලුත් කතාව නිර්මාණය කරන්න.
+CRITICAL INSTRUCTIONS FOR FORMATTING:
+1. Write exactly 5 to 8 sentences.
+2. Write the entire story as ONE SINGLE CONTINUOUS PARAGRAPH.
+3. DO NOT number the sentences (e.g., no "1.", "2.", or "S6").
+4. DO NOT use bullet points or asterisks (*).
+5. DO NOT write any explanations, thought processes, or confirm the words used.
+6. DO NOT output any English words.
+7. ONLY OUTPUT THE PURE SINHALA STORY TEXT.
 
---- ආදර්ශමත් කතාව (Example) ---
+EXAMPLE OF EXPECTED OUTPUT:
 දවසක් පුංචි කමල් පාර දිගේ ඉස්කෝලේ යමින් හිටියා. පාර අයිනේ පුංචි බලු පැටියෙක් තනිවෙලා ඉන්නවා කමල් දැක්කා. බලු පැටියාට ගොඩක් බඩගිනි වෙලා බව කමල්ට තේරුණා. කමල් ඉක්මනට එයාගේ කෑම පෙට්ටියෙන් බත් ටිකක් පැටියාට දුන්නා. බලු පැටියා සතුටින් වලිගය වනලා බත් ටික කෑවා. අනුන්ට උදව් කිරීම ගොඩක් හොඳ පුරුද්දක් කියලා කමල් දැනගත්තා.
----------------------------
-
-CRITICAL RULES:
-* DO NOT write your thought process or any explanations.
-* DO NOT output any English words.
-* DO NOT confirm that you followed the rules.
-* OUTPUT ONLY THE PURE SINHALA STORY TEXT.
 """
     
 
@@ -218,7 +214,7 @@ CRITICAL RULES:
         story_response = client.models.generate_content(
             model='gemini-3.1-pro-preview',
             contents=story_prompt,
-            config=types.GenerateContentConfig(temperature=0.3, max_output_tokens=1000)
+            config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=800)
         )
         raw_story = story_response.text.strip()
 
