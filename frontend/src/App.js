@@ -12,6 +12,7 @@ const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost
 
 function App() {
   const [storyData, setStoryData] = useState(null);
+  const [audioMap, setAudioMap] = useState({});
   const [score, setScore] = useState(0);
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -116,6 +117,7 @@ function App() {
 
       if (response.ok) {
         setStoryData(data.story);
+        setAudioMap(data.audio_map || {});
         // Don't auto-speak here - the SentenceBySentenceStory component will handle it
       } else {
         throw new Error(data.detail || "Failed to fetch story");
@@ -154,6 +156,7 @@ function App() {
     
     // Reset for next story
     setStoryData(null);
+    setAudioMap({});
   };
 
   return (
@@ -323,6 +326,7 @@ function App() {
                   <div className="h-full rounded-2xl overflow-hidden shadow-2xl">
                     <SentenceBySentenceStory
                       storyData={storyData}
+                      audioMap={audioMap}
                       onComplete={handleAnswer}
                       onScoreUpdate={(newScore) => setScore(newScore)}
                       userId={userId}
