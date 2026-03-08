@@ -161,13 +161,20 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     }
     setTotalQuestions(prev => prev + 1);
 
-    // Speak Sinhala feedback
+    // Speak Sinhala feedback — for wrong answers, also re-read the sentence with the correct word
     setIsSpeaking(true);
-    speakText(correct ? "හරි! ඉතා හොඳයි!" : `වැරදියි. නිවැරදි වචනය ${currentSentence.target_word}`);
-    setTimeout(() => setIsSpeaking(false), 2000);
+    if (correct) {
+      speakText("හරි! ඉතා හොඳයි!");
+    } else {
+      speakText(`වැරදියි. නිවැරදි වචනය ${currentSentence.target_word}`);
+      // After a pause, re-read the full sentence so the child hears the word in context
+      setTimeout(() => {
+        speakText(currentSentence.text);
+      }, 2500);
+    }
+    setTimeout(() => setIsSpeaking(false), 3000);
 
-    // Auto-advance after 3 seconds
-    setTimeout(() => { setShowFeedback(false); moveToNext(); }, 3000);
+    // Do NOT auto-advance — let the child read the correct answer and click Next when ready
   };
 
   /** Gesture input: child holds up 1–4 fingers → hover option → 2s confirm */
@@ -277,11 +284,27 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     window.speechSynthesis.speak(utterance);
   };
 
-  /** Replace target word with ____ for fill-in-the-blank display */
+  /** Replace target word with ____ for fill-in-the-blank display, or reveal it after answering */
   const getDisplayText = () => {
     if (!currentSentence?.text) return '';
     if (!currentSentence.has_target_word || !currentSentence.target_word) return currentSentence.text;
+    if (answered) {
+      // After answering: show the full sentence with the correct word revealed
+      return currentSentence.text;
+    }
     return currentSentence.text.replace(currentSentence.target_word, '____');
+  };
+
+  /** Get parts of the sentence split around the target word (for highlighting after answer) */
+  const getRevealedParts = () => {
+    if (!currentSentence?.text || !currentSentence.target_word) return null;
+    const idx = currentSentence.text.indexOf(currentSentence.target_word);
+    if (idx === -1) return null;
+    return {
+      before: currentSentence.text.substring(0, idx),
+      word: currentSentence.target_word,
+      after: currentSentence.text.substring(idx + currentSentence.target_word.length)
+    };
   };
 
   const storyProgress = ((currentSentenceIndex + 1) / storyData.story_sentences.length) * 100;
@@ -339,17 +362,37 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
         earnedStars={earnedStars} totalQuestions={totalQuestions}
         currentSentence={currentSentenceIndex + 1} totalSentences={storyData.story_sentences.length}
       >
-        {/* Sentence with blank */}
+        {/* Sentence with blank — or revealed correct answer after answering */}
         <div className="story-bubble-container">
           <div className="story-speech-bubble">
             <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
             <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
             <div className="bubble-story-text">
-              {getDisplayText().split('____').map((part, i, arr) => (
-                <React.Fragment key={i}>
-                  {part}{i < arr.length - 1 && <span className="blank-space" />}
-                </React.Fragment>
-              ))}
+              {answered ? (
+                // After answering: show full sentence with the correct word highlighted
+                (() => {
+                  const parts = getRevealedParts();
+                  if (parts) {
+                    return (
+                      <>
+                        {parts.before}
+                        <span className={`revealed-word ${isCorrect ? 'revealed-correct' : 'revealed-wrong'}`}>
+                          {parts.word}
+                        </span>
+                        {parts.after}
+                      </>
+                    );
+                  }
+                  return getDisplayText();
+                })()
+              ) : (
+                // Before answering: show blank
+                getDisplayText().split('____').map((part, i, arr) => (
+                  <React.Fragment key={i}>
+                    {part}{i < arr.length - 1 && <span className="blank-space" />}
+                  </React.Fragment>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -357,11 +400,15 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
         <div className="question-text">👂 ඔබට ඇහුණු වචනය කුමක්ද?</div>
         <button className="relisten-btn" onClick={handleListen}>🔊 නැවත අහන්න</button>
 
-        {/* Feedback toast */}
-        {showFeedback && (
+        {/* Feedback display — stays visible until child clicks Next */}
+        {answered && (
           <div className="feedback-toast">
             <span className="feedback-emoji">{isCorrect ? '🎉' : '💪'}</span>
-            <span className="feedback-text">{isCorrect ? 'හරි! ඉතා හොඳයි!' : currentSentence.target_word}</span>
+            <span className="feedback-text">
+              {isCorrect
+                ? 'හරි! ඉතා හොඳයි!'
+                : `නිවැරදි පිළිතුර: ${currentSentence.target_word}`}
+            </span>
           </div>
         )}
 
