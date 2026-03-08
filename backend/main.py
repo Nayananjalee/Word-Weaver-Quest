@@ -242,8 +242,7 @@ RETURN ONLY THIS JSON (no markdown, no explanation):
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7 if attempt == 0 else 0.3,
-                    max_output_tokens=4096,
-                    response_mime_type="application/json"
+                    max_output_tokens=4096
                 )
             )
             raw_text = response.text.strip()
@@ -478,13 +477,16 @@ def _extract_json(raw_text: str) -> Optional[str]:
 
 def generate_audio(text: str) -> bytes:
     """
-    Generate speech audio for Sinhala text using gTTS (Google Translate TTS).
+    Generate speech audio using Gemini 2.5 Pro Preview TTS.
 
-    gTTS supports Sinhala natively and produces MP3 audio.
-    Gemini TTS does NOT support Sinhala script (returns finish_reason=OTHER).
+    Matches the proven working approach:
+      - Pass raw text directly as contents (no prompt wrapping)
+      - Only response_modalities=["AUDIO"] (no speech_config / voice_config)
+      - Works for both Sinhala and English
+      - Raw PCM output wrapped in WAV header (mono, 16-bit, 24000 Hz)
 
+    Falls back to gTTS if Gemini TTS fails.
     Uses in-memory cache to avoid re-generating identical phrases.
-    Returns MP3 bytes.
     """
     # Check cache first
     cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()
@@ -492,62 +494,51 @@ def generate_audio(text: str) -> bytes:
         print(f"🔊 TTS cache hit for: {text[:30]}...")
         return tts_cache[cache_key]
 
-    # Detect if text contains Sinhala unicode (range U+0D80–U+0DFF)
-    has_sinhala = any('\u0D80' <= ch <= '\u0DFF' for ch in text)
+    audio_bytes = None
 
-    if has_sinhala:
-        # Use gTTS — reliable Sinhala support
-        print(f"🔊 gTTS generating Sinhala audio for: {text[:40]}...")
-        tts = gTTS(text=text, lang='si', slow=False)
-        mp3_buffer = io.BytesIO()
-        tts.write_to_fp(mp3_buffer)
-        mp3_buffer.seek(0)
-        audio_bytes = mp3_buffer.read()
-    else:
-        # For non-Sinhala text, try Gemini TTS first, fall back to gTTS
-        try:
-            prompt = f"Read this text clearly and warmly: {text}"
-            response = client.models.generate_content(
-                model='gemini-2.5-pro-preview-tts',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name="Aoede"
-                            )
-                        )
-                    )
-                )
+    # Primary: Gemini 2.5 Pro Preview TTS (works for Sinhala + English)
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-pro-preview-tts',
+            contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"]
             )
-            if (response.candidates and response.candidates[0].content
-                    and response.candidates[0].content.parts):
-                raw_audio = response.candidates[0].content.parts[0].inline_data.data
-                wav_buffer = io.BytesIO()
-                with wave.open(wav_buffer, 'wb') as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(24000)
-                    wf.writeframes(raw_audio)
-                wav_buffer.seek(0)
-                audio_bytes = wav_buffer.read()
-            else:
-                raise ValueError("Gemini TTS returned no audio")
-        except Exception as e:
-            print(f"⚠️ Gemini TTS failed ({e}), falling back to gTTS")
-            tts = gTTS(text=text, lang='en', slow=False)
+        )
+        if (response.candidates and response.candidates[0].content
+                and response.candidates[0].content.parts):
+            raw_pcm = response.candidates[0].content.parts[0].inline_data.data
+            # Wrap raw PCM in WAV header (mono, 16-bit, 24000 Hz)
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                wf.writeframes(raw_pcm)
+            wav_buffer.seek(0)
+            audio_bytes = wav_buffer.read()
+            print(f"🔊 Gemini TTS OK ({len(audio_bytes)} bytes): {text[:40]}...")
+        else:
+            raise ValueError("Gemini TTS returned no audio parts")
+    except Exception as e:
+        print(f"⚠️ Gemini TTS failed ({e}), trying gTTS fallback...")
+        try:
+            has_sinhala = any('\u0D80' <= ch <= '\u0DFF' for ch in text)
+            tts = gTTS(text=text, lang='si' if has_sinhala else 'en', slow=False)
             mp3_buffer = io.BytesIO()
             tts.write_to_fp(mp3_buffer)
             mp3_buffer.seek(0)
             audio_bytes = mp3_buffer.read()
+            print(f"🔊 gTTS fallback OK ({len(audio_bytes)} bytes): {text[:40]}...")
+        except Exception as e2:
+            print(f"❌ gTTS also failed: {e2}")
+            raise
 
     # Store in cache (evict oldest if full)
     if len(tts_cache) >= TTS_CACHE_MAX:
         oldest_key = next(iter(tts_cache))
         del tts_cache[oldest_key]
     tts_cache[cache_key] = audio_bytes
-    print(f"🔊 TTS generated & cached ({len(audio_bytes)} bytes) for: {text[:30]}...")
 
     return audio_bytes
 
@@ -808,10 +799,12 @@ async def submit_answer(request: AnswerRequest):
 
 @app.post("/text-to-speech")
 async def generate_speech(request: TTSRequest):
-    """Convert Sinhala text to audio via gTTS. Returns base64."""
+    """Convert Sinhala text to audio via Gemini TTS. Returns base64."""
     try:
         audio_bytes = generate_audio(request.text)
-        return {"audio": base64.b64encode(audio_bytes).decode('utf-8'), "format": "mp3"}
+        # Detect format: WAV starts with RIFF header, otherwise MP3
+        fmt = "wav" if audio_bytes[:4] == b'RIFF' else "mp3"
+        return {"audio": base64.b64encode(audio_bytes).decode('utf-8'), "format": fmt}
     except Exception as e:
         print(f"Error in text-to-speech: {e}")
         raise HTTPException(status_code=500, detail=str(e))
