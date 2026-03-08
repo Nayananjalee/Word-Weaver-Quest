@@ -47,6 +47,9 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   const hoveredOptionRef = useRef(null);
   const CONFIRM_DURATION = 2000; // hold 2 seconds to confirm
 
+  // ─── Audio ref for cancellation ───
+  const currentAudioRef = useRef(null);
+
   // ─── Webcam preview ref ───
   const previewVideoRef = useRef(null);
   const gestureLoopRef = useRef(null);
@@ -161,6 +164,32 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     }
     setTotalQuestions(prev => prev + 1);
 
+    // Track word progress via SRS
+    if (currentSentence.target_word && userId) {
+      const trackProgress = async () => {
+        try {
+          await fetch(`${API_BASE_URL}/srs/add-word`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, word: currentSentence.target_word })
+          });
+          await fetch(`${API_BASE_URL}/srs/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userId,
+              word: currentSentence.target_word,
+              quality: correct ? 5 : 1,
+              response_time: 0
+            })
+          });
+        } catch (err) {
+          console.warn('SRS tracking failed:', err);
+        }
+      };
+      trackProgress();
+    }
+
     // Speak Sinhala feedback — for wrong answers, also re-read the sentence with the correct word
     setIsSpeaking(true);
     if (correct) {
@@ -256,6 +285,14 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
 
   /** Gemini TTS with browser speech synthesis fallback */
   const speakText = async (text) => {
+    // Cancel any previous audio to prevent overlap
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+      currentAudioRef.current = null;
+    }
+    window.speechSynthesis.cancel();
+
     try {
       const response = await fetch(`${API_BASE_URL}/text-to-speech`, {
         method: 'POST',
@@ -269,17 +306,18 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
         const view = new Uint8Array(arrayBuffer);
         for (let i = 0; i < audioData.length; i++) view[i] = audioData.charCodeAt(i);
         const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
-        new Audio(URL.createObjectURL(blob)).play();
+        const audio = new Audio(URL.createObjectURL(blob));
+        currentAudioRef.current = audio;
+        audio.play();
         return;
       }
     } catch (err) {
       console.warn('Gemini TTS failed, falling back to browser TTS:', err);
     }
     // Fallback: browser Web Speech API (si-LK Sinhala)
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'si-LK';
-    utterance.rate = 0.8;
+    utterance.rate = 1.0;
     utterance.pitch = 1.1;
     window.speechSynthesis.speak(utterance);
   };
@@ -362,43 +400,47 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
         earnedStars={earnedStars} totalQuestions={totalQuestions}
         currentSentence={currentSentenceIndex + 1} totalSentences={storyData.story_sentences.length}
       >
-        {/* Sentence with blank — or revealed correct answer after answering */}
-        <div className="story-bubble-container">
-          <div className="story-speech-bubble">
-            <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
-            <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
-            <div className="bubble-story-text">
-              {answered ? (
-                // After answering: show full sentence with the correct word highlighted
-                (() => {
-                  const parts = getRevealedParts();
-                  if (parts) {
-                    return (
-                      <>
-                        {parts.before}
-                        <span className={`revealed-word ${isCorrect ? 'revealed-correct' : 'revealed-wrong'}`}>
-                          {parts.word}
-                        </span>
-                        {parts.after}
-                      </>
-                    );
-                  }
-                  return getDisplayText();
-                })()
-              ) : (
-                // Before answering: show blank
-                getDisplayText().split('____').map((part, i, arr) => (
-                  <React.Fragment key={i}>
-                    {part}{i < arr.length - 1 && <span className="blank-space" />}
-                  </React.Fragment>
-                ))
-              )}
+        {/* Sentence + question prompt — stacked vertically for full visibility */}
+        <div className="question-phase-layout">
+          <div className="story-bubble-container question-phase-bubble">
+            <div className="story-speech-bubble">
+              <div className="bubble-sparkle" style={{ top: -8, right: 10 }}>✨</div>
+              <div className="bubble-sparkle" style={{ top: -5, left: 15, animationDelay: '1s' }}>💫</div>
+              <div className="bubble-story-text">
+                {answered ? (
+                  // After answering: show full sentence with the correct word highlighted
+                  (() => {
+                    const parts = getRevealedParts();
+                    if (parts) {
+                      return (
+                        <>
+                          {parts.before}
+                          <span className={`revealed-word ${isCorrect ? 'revealed-correct' : 'revealed-wrong'}`}>
+                            {parts.word}
+                          </span>
+                          {parts.after}
+                        </>
+                      );
+                    }
+                    return getDisplayText();
+                  })()
+                ) : (
+                  // Before answering: show blank
+                  getDisplayText().split('____').map((part, i, arr) => (
+                    <React.Fragment key={i}>
+                      {part}{i < arr.length - 1 && <span className="blank-space" />}
+                    </React.Fragment>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="question-text">👂 ඔබට ඇහුණු වචනය කුමක්ද?</div>
-        <button className="relisten-btn" onClick={handleListen}>🔊 නැවත අහන්න</button>
+          <div className="question-prompt-row">
+            <div className="question-text">👂 ඔබට ඇහුණු වචනය කුමක්ද?</div>
+            <button className="relisten-btn" onClick={handleListen}>🔊 නැවත අහන්න</button>
+          </div>
+        </div>
 
         {/* Feedback display — stays visible until child clicks Next */}
         {answered && (
@@ -478,8 +520,8 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
 
         {/* After answering — highlight correct/incorrect + next button */}
         {answered && (
-          <>
-            <div className="answer-options-container">
+          <div className="answered-bottom-section">
+            <div className="answered-options-row">
               {currentSentence.options?.map((option, index) => (
                 <div key={index} className={`answer-option-card ${
                   option === currentSentence.target_word ? 'correct'
@@ -490,10 +532,10 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
                 </div>
               ))}
             </div>
-            <button className="next-sentence-btn" onClick={moveToNext}>
+            <button className="next-sentence-btn answered-next" onClick={moveToNext}>
               {isLastSentence ? '🎉 ප්‍රතිඵල' : '➡️ ඊළඟ'}
             </button>
-          </>
+          </div>
         )}
 
       </StorytellingScene>
