@@ -53,7 +53,7 @@ function App() {
         for (let i = 0; i < audioData.length; i++) {
           view[i] = audioData.charCodeAt(i);
         }
-        const mime = data.format === 'wav' ? 'audio/wav' : 'audio/mpeg';
+        const mime = data.format === 'mp3' ? 'audio/mpeg' : 'audio/wav';
         const blob = new Blob([arrayBuffer], { type: mime });
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
