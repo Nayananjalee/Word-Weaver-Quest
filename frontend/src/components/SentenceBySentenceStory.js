@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import StorytellingScene from './StorytellingScene';
+import { useSharedCamera } from './SharedCameraProvider';
+import gestureService from './GestureRecognizerService';
 import API_BASE_URL from '../config';
 
 /**
@@ -10,10 +12,6 @@ import API_BASE_URL from '../config';
  *   2. ANSWER  — Sentence shown with a blank (____); child picks the missing word
  *   3. FEEDBACK — Correct → star + celebration  |  Wrong → show correct answer
  *   4. Repeat for every sentence, then show final reward screen
- *
- * Input modes:
- *   - Click mode  — child clicks an answer option
- *   - Gesture mode — child holds up 1–4 fingers for 2 sec (MediaPipe hand detection)
  *
  * Props:
  *   storyData     — { story_sentences: [{ text, target_word, options, has_target_word }] }
@@ -43,10 +41,73 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   // ─── Gesture hold-to-confirm state ───
   const [hoveredOptionIndex, setHoveredOptionIndex] = useState(null);
   const [confirmProgress, setConfirmProgress] = useState(0);
+  const [detectedFingers, setDetectedFingers] = useState(0);
   const confirmTimerRef = useRef(null);
   const confirmStartTimeRef = useRef(null);
   const hoveredOptionRef = useRef(null);
   const CONFIRM_DURATION = 2000; // hold 2 seconds to confirm
+
+  // ─── Webcam preview ref ───
+  const previewVideoRef = useRef(null);
+  const gestureLoopRef = useRef(null);
+  const { stream, isInitialized: cameraReady } = useSharedCamera();
+
+  // Attach camera stream to preview video element
+  useEffect(() => {
+    if (useGesture && stream && previewVideoRef.current) {
+      previewVideoRef.current.srcObject = stream;
+      previewVideoRef.current.play().catch(() => {});
+    }
+  }, [useGesture, stream]);
+
+  // Run gesture recognition loop when gesture mode is active
+  useEffect(() => {
+    if (!useGesture || !stream || !cameraReady) {
+      if (gestureLoopRef.current) { cancelAnimationFrame(gestureLoopRef.current); gestureLoopRef.current = null; }
+      return;
+    }
+
+    let running = true;
+    const runLoop = async () => {
+      const recognizer = gestureService.getSync();
+      if (!recognizer || !previewVideoRef.current || !running) return;
+      try {
+        const result = recognizer.recognizeForVideo(previewVideoRef.current, Date.now());
+        if (result?.gestures?.length > 0 && result.landmarks?.length > 0) {
+          const fingers = countFingers(result.landmarks[0]);
+          setDetectedFingers(fingers);
+          handleGestureUpdate(fingers);
+        } else {
+          setDetectedFingers(0);
+          handleGestureUpdate(0);
+        }
+      } catch (e) { /* ignore frame errors */ }
+      if (running) gestureLoopRef.current = requestAnimationFrame(runLoop);
+    };
+
+    // Start after a short delay to let video initialize
+    const startTimeout = setTimeout(() => { if (running) runLoop(); }, 500);
+    return () => {
+      running = false;
+      clearTimeout(startTimeout);
+      if (gestureLoopRef.current) cancelAnimationFrame(gestureLoopRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useGesture, stream, cameraReady, answered, currentSentenceIndex]);
+
+  // Count extended fingers from MediaPipe landmarks
+  const countFingers = (landmarks) => {
+    if (!landmarks || landmarks.length < 21) return 0;
+    let count = 0;
+    // Thumb: tip (4) vs IP joint (3) — check x distance from wrist
+    if (Math.abs(landmarks[4].x - landmarks[0].x) > Math.abs(landmarks[3].x - landmarks[0].x)) count++;
+    // Index (8>6), Middle (12>10), Ring (16>14), Pinky (20>18) — tip above PIP
+    if (landmarks[8].y < landmarks[6].y) count++;
+    if (landmarks[12].y < landmarks[10].y) count++;
+    if (landmarks[16].y < landmarks[14].y) count++;
+    if (landmarks[20].y < landmarks[18].y) count++;
+    return count;
+  };
 
   // Clean up gesture timer on unmount
   useEffect(() => {
@@ -57,6 +118,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   useEffect(() => {
     setHoveredOptionIndex(null);
     setConfirmProgress(0);
+    setDetectedFingers(0);
     if (confirmTimerRef.current) clearInterval(confirmTimerRef.current);
   }, [currentSentenceIndex, answered]);
 
@@ -109,7 +171,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   };
 
   /** Gesture input: child holds up 1–4 fingers → hover option → 2s confirm */
-  const handleGestureUpdate = (fingerCount) => {
+  const handleGestureUpdate = useCallback((fingerCount) => {
     if (answered || !currentSentence?.options) return;
     const optionIndex = fingerCount - 1;
 
@@ -144,7 +206,8 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
         }
       }, 50);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answered, currentSentence]);
 
   /** Move to next sentence or show reward screen */
   const moveToNext = () => {
@@ -335,6 +398,37 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
           </div>
         )}
 
+        {/* Webcam preview — visible when gesture mode is on */}
+        {useGesture && (
+          <div style={{
+            position: 'fixed', bottom: 16, right: 16, zIndex: 1000,
+            width: 180, height: 135, borderRadius: 16,
+            overflow: 'hidden', border: '3px solid rgba(156,39,176,0.7)',
+            boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
+            background: '#1a1a2e'
+          }}>
+            <video ref={previewVideoRef} autoPlay playsInline muted
+              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              background: 'rgba(0,0,0,0.6)', color: 'white',
+              textAlign: 'center', fontSize: 12, padding: '2px 4px'
+            }}>
+              {detectedFingers > 0 ? `☝️ ${detectedFingers} ඇඟිලි` : '✋ ඇඟිලි පෙන්වන්න'}
+            </div>
+          </div>
+        )}
+
+        {/* Gesture mode toggle */}
+        <div className="gesture-mode-badge">
+          <button className="gesture-toggle-btn" onClick={() => setUseGesture(!useGesture)}>
+            {useGesture ? '🖱️ බොත්තම්' : '🖐️ ඇඟිලි'}
+          </button>
+          {useGesture && hoveredOptionIndex !== null && (
+            <span className="gesture-live-indicator">☝️ {hoveredOptionIndex + 1} තෝරාගෙන...</span>
+          )}
+        </div>
+
         {/* After answering — highlight correct/incorrect + next button */}
         {answered && (
           <>
@@ -355,15 +449,6 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
           </>
         )}
 
-        {/* Gesture mode toggle */}
-        <div className="gesture-mode-badge">
-          <button className="gesture-toggle-btn" onClick={() => setUseGesture(!useGesture)}>
-            {useGesture ? '🖱️ බොත්තම්' : '🖐️ ඇඟිලි'}
-          </button>
-          {useGesture && hoveredOptionIndex !== null && (
-            <span className="gesture-live-indicator">☝️ {hoveredOptionIndex + 1} තෝරාගෙන...</span>
-          )}
-        </div>
       </StorytellingScene>
     );
   }
@@ -425,6 +510,27 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
           </>
         )}
       </div>
+
+      {/* Webcam preview — visible when gesture mode is on */}
+      {useGesture && (
+        <div style={{
+          position: 'fixed', bottom: 16, right: 16, zIndex: 1000,
+          width: 180, height: 135, borderRadius: 16,
+          overflow: 'hidden', border: '3px solid rgba(156,39,176,0.7)',
+          boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
+          background: '#1a1a2e'
+        }}>
+          <video ref={previewVideoRef} autoPlay playsInline muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            background: 'rgba(0,0,0,0.6)', color: 'white',
+            textAlign: 'center', fontSize: 12, padding: '2px 4px'
+          }}>
+            {detectedFingers > 0 ? `☝️ ${detectedFingers} ඇඟිලි` : '✋ ඇඟිලි පෙන්වන්න'}
+          </div>
+        </div>
+      )}
 
       {/* Gesture toggle */}
       <div className="gesture-mode-badge">
