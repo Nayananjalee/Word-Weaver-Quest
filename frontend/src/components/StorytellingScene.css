@@ -1526,10 +1526,10 @@
 }
 
 .bubble-story-text {
-  font-size: 1.15rem;
-  line-height: 1.7;
+  font-size: 1.35rem;
+  line-height: 1.8;
   color: #2c1810;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
   position: relative;
   z-index: 1;
@@ -1883,18 +1883,49 @@
 .question-phase-overlay { position: absolute; inset: 0; background: rgba(255, 248, 230, 0.15); z-index: 22; animation: overlay-fade 0.3s ease-out; }
 @keyframes overlay-fade { 0% { opacity: 0; } 100% { opacity: 1; } }
 
+/* Vertical layout container for question phase — bubble on top, prompt below */
+.question-phase-layout {
+  position: absolute;
+  top: 2%;
+  left: 5%;
+  right: 5%;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Override bubble positioning when inside question phase layout */
+.question-phase-bubble {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100%;
+  max-width: 700px;
+}
+
+/* Row for question text + relisten button */
+.question-prompt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .question-text {
-  position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 248, 230, 0.95));
-  padding: 12px 24px; border-radius: 20px;
+  padding: 10px 22px; border-radius: 20px;
   font-size: 1.1rem; font-weight: 700; color: #e65100; text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12); z-index: 25; white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12); white-space: nowrap;
   animation: question-drop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
-@keyframes question-drop { 0% { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(0.8); } 100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
+@keyframes question-drop { 0% { opacity: 0; transform: translateY(-15px) scale(0.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 
-.feedback-toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 55; text-align: center; animation: toast-appear 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+.feedback-toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 55; text-align: center; animation: toast-appear 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); pointer-events: none; }
 @keyframes toast-appear { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 
 .feedback-emoji { font-size: 4rem; display: block; margin-bottom: 8px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2)); }
@@ -1919,6 +1950,38 @@
 }
 
 .next-sentence-btn:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 8px 25px rgba(255, 152, 0, 0.5); }
+
+/* Answered state — flex column layout so Next button is always below the cards */
+.answered-bottom-section {
+  position: absolute;
+  bottom: 2%;
+  left: 5%;
+  right: 5%;
+  z-index: 26;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: options-slide-up 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.answered-options-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.answered-bottom-section .answer-option-card {
+  flex: 1;
+  max-width: 180px;
+}
+
+.answered-next {
+  position: relative !important;
+  bottom: auto !important;
+  right: auto !important;
+}
 
 
 /* =============================================================
@@ -2047,11 +2110,10 @@
 }
 
 .relisten-btn {
-  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 30;
   background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px);
   color: #3e2723; border: 2px solid rgba(0, 0, 0, 0.1);
-  padding: 6px 16px; border-radius: 20px;
-  font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.3s;
+  padding: 8px 18px; border-radius: 20px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s;
 }
 
 .relisten-btn:hover { background: rgba(255, 255, 255, 0.9); border-color: rgba(255, 183, 77, 0.5); }
@@ -2069,10 +2131,13 @@
   .angel-container { left: 3%; bottom: 22%; transform: scale(0.7); }
   .realistic-children-container { right: 2%; transform: scale(0.85); }
   .story-bubble-container { left: 5%; top: 3%; }
-  .bubble-story-text { font-size: 0.95rem; }
+  .question-phase-layout { left: 3%; right: 3%; }
+  .bubble-story-text { font-size: 1rem; }
   .answer-option-card { padding: 8px 6px; }
   .option-text { font-size: 0.85rem; }
   .gesture-camera-panel { width: 200px; top: 5%; left: 1%; }
   .realistic-sun { top: 2%; right: 5%; }
   .sun-core { width: 35px; height: 35px; }
+  .question-prompt-row { gap: 8px; }
+  .question-text { font-size: 0.95rem; padding: 8px 16px; }
 }
