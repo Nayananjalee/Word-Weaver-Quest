@@ -323,8 +323,8 @@ function App() {
               )}
 
               {/* Story Scene */}
-              <div className="flex-1 overflow-hidden min-h-0">
-                {storyData && (
+              {!loading && storyData && (
+                <div className="flex-1 overflow-hidden min-h-0">
                   <div className="h-full rounded-2xl overflow-hidden shadow-2xl">
                     <SentenceBySentenceStory
                       storyData={storyData}
@@ -334,8 +334,8 @@ function App() {
                       userId={userId}
                     />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </>
           )}
 
