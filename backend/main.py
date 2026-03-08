@@ -242,10 +242,12 @@ RETURN ONLY THIS JSON (no markdown, no explanation):
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7 if attempt == 0 else 0.3,
-                    max_output_tokens=4096
+                    max_output_tokens=4096,
+                    response_mime_type="application/json"
                 )
             )
             raw_text = response.text.strip()
+            print(f"📄 Gemini response (attempt {attempt + 1}, {len(raw_text)} chars): {raw_text[:200]}...")
             if raw_text and len(raw_text) > 50:
                 # Try to extract valid JSON
                 clean = _extract_json(raw_text)
@@ -262,10 +264,11 @@ RETURN ONLY THIS JSON (no markdown, no explanation):
                         print(f"⚠️ Only {len(sentences)} sentences, retrying...")
                 else:
                     print(f"⚠️ Could not extract JSON (attempt {attempt + 1})")
+                    print(f"⚠️ Raw text sample: {raw_text[:300]}")
             else:
-                print(f"⚠️ Gemini returned insufficient content (attempt {attempt + 1})")
+                print(f"⚠️ Gemini returned insufficient content (attempt {attempt + 1}): '{raw_text[:100]}'")
         except Exception as e:
-            print(f"❌ Gemini error (attempt {attempt + 1}/{max_retries}): {e}")
+            print(f"❌ Gemini error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
 
         if attempt < max_retries - 1:
             time.sleep(1)
