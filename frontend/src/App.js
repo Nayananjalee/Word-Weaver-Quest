@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from './config';
-
-const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost:5173';
 import SentenceBySentenceStory from './components/SentenceBySentenceStory';
 import WordManager from './components/WordManager';
 import SharedCameraProvider from './components/SharedCameraProvider';
 import StoryLoadingAnimation from './components/StoryLoadingAnimation';
-import gestureService from './components/GestureRecognizerService';
-// import HandGestureReader from './components/HandGestureReader'; // Temporarily disabled
 import './App.css';
 
-// 🚀 Start preloading MediaPipe WASM + model immediately at import time
-// This runs while the child sees the home screen / picks a topic
-gestureService.preload();
+// Link back to main SilentSpark research app (if running as embedded module)
+const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost:5173';
 
 function App() {
   const [storyData, setStoryData] = useState(null);
@@ -154,12 +149,6 @@ function App() {
     // Reset for next story
     setStoryData(null);
   };
-  
-  // const handleGesture = (gesture) => {
-  //   if (gesture === 'wave' && storyData?.options?.length > 0) {
-  //     handleAnswer(storyData.options[0]);
-  //   }
-  // };
 
   return (
     <SharedCameraProvider>
