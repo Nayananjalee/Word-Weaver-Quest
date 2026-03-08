@@ -36,7 +36,6 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [childrenReaction, setChildrenReaction] = useState('listening');
   const [celebrationType, setCelebrationType] = useState(null);
-  const [showFeedback, setShowFeedback] = useState(false);
 
   // ─── Gesture hold-to-confirm state ───
   const [hoveredOptionIndex, setHoveredOptionIndex] = useState(null);
@@ -127,15 +126,10 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     if (confirmTimerRef.current) clearInterval(confirmTimerRef.current);
   }, [currentSentenceIndex, answered]);
 
-  // ─── Safety: no story data ───
-  if (!storyData?.story_sentences?.length) {
-    return <div className="text-center p-8 text-red-500">කතාවක් නොමැත</div>;
-  }
-  const currentSentence = storyData.story_sentences[currentSentenceIndex];
-  const isLastSentence = currentSentenceIndex === storyData.story_sentences.length - 1;
-  if (!currentSentence) {
-    return <div className="text-center p-8 text-red-500">දෝෂයකි</div>;
-  }
+  // ─── Derived state (safe to compute even when used in hooks below early returns) ───
+  const sentences = storyData?.story_sentences || [];
+  const currentSentence = sentences[currentSentenceIndex] || null;
+  const isLastSentence = currentSentenceIndex === sentences.length - 1;
 
   // ═══════════════════════════════════════
   // GAME LOGIC
@@ -149,7 +143,6 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     setIsCorrect(correct);
     setSelectedAnswer(selectedWord);
     setAnswered(true);
-    setShowFeedback(true);
 
     // Animate children characters
     setChildrenReaction(correct ? 'excited' : 'sad');
@@ -302,7 +295,9 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
       const view = new Uint8Array(arrayBuffer);
       for (let i = 0; i < audioData.length; i++) view[i] = audioData.charCodeAt(i);
       const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
-      const audio = new Audio(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
       currentAudioRef.current = audio;
       audio.play();
     };
@@ -359,7 +354,15 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     };
   };
 
-  const storyProgress = ((currentSentenceIndex + 1) / storyData.story_sentences.length) * 100;
+  const storyProgress = sentences.length > 0 ? ((currentSentenceIndex + 1) / sentences.length) * 100 : 0;
+
+  // ─── Safety: no story data (placed after all hooks) ───
+  if (!sentences.length) {
+    return <div className="text-center p-8 text-red-500">කතාවක් නොමැත</div>;
+  }
+  if (!currentSentence) {
+    return <div className="text-center p-8 text-red-500">දෝෂයකි</div>;
+  }
 
   // ═══════════════════════════════════════
   // RENDER: FINAL REWARD SCREEN
