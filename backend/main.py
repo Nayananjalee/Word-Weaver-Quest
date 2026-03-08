@@ -188,6 +188,7 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
 
     Returns the raw JSON string directly (no second formatting call needed).
     Uses gemini-3.1-pro-preview for best Sinhala quality.
+    response_mime_type="application/json" forces pure JSON output — no markdown, no reasoning.
     """
     print(f"🔄 Using Gemini 3.1 Pro Preview for story generation...")
 
@@ -198,41 +199,31 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
 
     topic_instruction = f"\nStory setting/theme: {topic}" if topic else ""
 
-    prompt = f"""You are an expert Sinhala children's story writer for a hearing therapy game for hearing-impaired children aged 4-12.
-
+    prompt = f"""You are an expert Sinhala children's story writer.
 TARGET WORDS: {keywords}{topic_instruction}
 
-TASK: Write a fun, engaging Sinhala story with {min_sentences} to {max_sentences} sentences using the target words, then format it as a quiz JSON.
+TASK: Write a fun Sinhala story ({min_sentences}-{max_sentences} sentences) using the target words, formatted STRICTLY as the JSON below.
 
-STORY RULES:
-- Write a REAL story with a beginning, middle, and end — not just random sentences
-- Each target word MUST appear in at least 2-3 DIFFERENT sentences
-- Keep sentences SHORT (5-8 Sinhala words each)
-- Use SIMPLE vocabulary for young hearing-impaired children
-- Use concrete nouns, action verbs, colors, sizes, familiar contexts (home, school, animals, food, family, nature)
-- Write ONLY in Sinhala script
-- Make it fun and age-appropriate
+RULES:
+1. ABSOLUTELY NO REASONING, NO THINKING OUT LOUD, NO EXPLANATIONS. OUTPUT ONLY PURE JSON.
+2. Each target word MUST appear in the story.
+3. Keep sentences SHORT (5-8 Sinhala words).
+4. For each sentence, define a "target_word" (use the given target words, or a noun/verb).
+5. Generate exactly 3 phonetically similar Sinhala distractors.
+6. "options" array must contain the 1 correct word + 3 distractors in random order.
 
-QUIZ FORMAT RULES:
-- EVERY sentence becomes a question
-- For sentences with a TARGET WORD, use that as target_word
-- For sentences without a target word, pick the most important NOUN or VERB as target_word
-- Generate exactly 3 phonetically similar Sinhala distractors per target_word
-  - Distractors differ by 1-2 phonemes (voicing: ප→බ, ත→ද, ක→ග; place: ත→ට, ද→ඩ; nasality: ම→බ, න→ද)
-  - All distractors must be real Sinhala words
-- Options array = correct word + 3 distractors in SHUFFLED order
-
-RETURN ONLY THIS JSON (no markdown, no explanation):
+JSON FORMAT:
 {{
   "story_sentences": [
     {{
-      "text": "Full Sinhala sentence",
+      "text": "අම්මා අද කාර්යාලය නිම වී ගෙදර ආවා.",
       "has_target_word": true,
-      "target_word": "correct_word",
-      "options": ["option1", "option2", "option3", "option4"]
+      "target_word": "කාර්යාලය",
+      "options": ["කාර්යාලය", "විද්‍යාලය", "කාරණය", "කාර්යය"]
     }}
   ]
-}}"""
+}}
+"""
 
     max_retries = 3
     for attempt in range(max_retries):
@@ -241,36 +232,35 @@ RETURN ONLY THIS JSON (no markdown, no explanation):
                 model='gemini-3.1-pro-preview',
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    temperature=0.7 if attempt == 0 else 0.3,
-                    max_output_tokens=4096
+                    temperature=0.4,
+                    max_output_tokens=4096,
+                    response_mime_type="application/json"
                 )
             )
             raw_text = response.text.strip()
             print(f"📄 Gemini response (attempt {attempt + 1}, {len(raw_text)} chars): {raw_text[:200]}...")
+
             if raw_text and len(raw_text) > 50:
-                # Try to extract valid JSON
-                clean = _extract_json(raw_text)
-                if clean:
-                    # Verify it has sentences
-                    parsed = json.loads(clean)
+                try:
+                    # response_mime_type guarantees pure JSON — parse directly
+                    parsed = json.loads(raw_text)
                     sentences = parsed.get('story_sentences', parsed if isinstance(parsed, list) else [])
                     if isinstance(parsed, list):
                         sentences = parsed
                     if len(sentences) >= 3:
-                        print(f"✅ Story + JSON generated in single call ({len(sentences)} sentences)")
-                        return clean
+                        print(f"✅ Story + JSON generated successfully ({len(sentences)} sentences)")
+                        return raw_text
                     else:
                         print(f"⚠️ Only {len(sentences)} sentences, retrying...")
-                else:
-                    print(f"⚠️ Could not extract JSON (attempt {attempt + 1})")
-                    print(f"⚠️ Raw text sample: {raw_text[:300]}")
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ JSON Parse Error (attempt {attempt + 1}): {e}")
             else:
                 print(f"⚠️ Gemini returned insufficient content (attempt {attempt + 1}): '{raw_text[:100]}'")
         except Exception as e:
             print(f"❌ Gemini error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
 
         if attempt < max_retries - 1:
-            time.sleep(1)
+            time.sleep(2)
 
     print("❌ All Gemini attempts failed")
     return None
