@@ -4,7 +4,6 @@ import API_BASE_URL from './config';
 const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost:5173';
 import SentenceBySentenceStory from './components/SentenceBySentenceStory';
 import WordManager from './components/WordManager';
-import ParentTherapistDashboard from './components/ParentTherapistDashboard';
 import SharedCameraProvider from './components/SharedCameraProvider';
 import StoryLoadingAnimation from './components/StoryLoadingAnimation';
 import gestureService from './components/GestureRecognizerService';
@@ -21,7 +20,7 @@ function App() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState('game'); // 'game', 'words', 'reports'
+  const [activeTab, setActiveTab] = useState('game'); // 'game', 'words'
   const [selectedTopic, setSelectedTopic] = useState('a friendly animal');
 
   // Topic options for story generation - child-friendly, culturally relevant
@@ -254,16 +253,7 @@ function App() {
           >
             📝 Words
           </button>
-          <button
-            onClick={() => setActiveTab('reports')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'reports'
-                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg scale-105'
-                : 'bg-white/30 text-white hover:bg-white/40'
-            }`}
-          >
-            📋 Reports
-          </button>
+
         </div>
 
         {/* Tab Content */}
@@ -354,11 +344,7 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'reports' && userId && (
-            <div className="flex-1 overflow-auto">
-              <ParentTherapistDashboard userId={userId} />
-            </div>
-          )}
+
         </div>
       </div>
     </div>
