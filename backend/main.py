@@ -193,30 +193,37 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     topic_instruction = f"මාතෘකාව: {topic}" if topic else ""
 
     # --- STEP 1: STORY GENERATION (GEMINI 3.1 PRO) ---
-    story_prompt = f"""Write a beautiful, simple Sinhala children's story using ALL of these exact words: {keywords}
+    story_prompt = f"""ඔබ ශ්‍රව්‍යාබාධිත කුඩා දරුවන්ට කතා ලියන විශේෂඥයෙකි.
+පහත වචන අනිවාර්යයෙන්ම භාවිතා කර සිංහල කතාවක් ලියන්න: {keywords}
 {topic_instruction}
 
-CRITICAL INSTRUCTIONS FOR FORMATTING:
+CRITICAL RULES:
 1. Write exactly 5 to 8 sentences.
-2. Write the entire story as ONE SINGLE CONTINUOUS PARAGRAPH.
-3. DO NOT number the sentences (e.g., no "1.", "2.", or "S6").
-4. DO NOT use bullet points or asterisks (*).
-5. DO NOT write any explanations, thought processes, or confirm the words used.
-6. DO NOT output any English words.
-7. ONLY OUTPUT THE PURE SINHALA STORY TEXT.
+2. Make it a real story (beginning, middle, end) written as ONE SINGLE PARAGRAPH.
+3. NO English words, NO bullet points, NO numbering, NO explanations.
+4. YOU MUST RETURN ONLY VALID JSON.
 
-EXAMPLE OF EXPECTED OUTPUT:
-දවසක් පුංචි කමල් පාර දිගේ ඉස්කෝලේ යමින් හිටියා. පාර අයිනේ පුංචි බලු පැටියෙක් තනිවෙලා ඉන්නවා කමල් දැක්කා. බලු පැටියාට ගොඩක් බඩගිනි වෙලා බව කමල්ට තේරුණා. කමල් ඉක්මනට එයාගේ කෑම පෙට්ටියෙන් බත් ටිකක් පැටියාට දුන්නා. බලු පැටියා සතුටින් වලිගය වනලා බත් ටික කෑවා. අනුන්ට උදව් කිරීම ගොඩක් හොඳ පුරුද්දක් කියලා කමල් දැනගත්තා.
+JSON FORMAT:
+{{
+  "story": "තනි ඡේදයක් ලෙස සම්පූර්ණ සිංහල කතාව මෙහි ලියන්න. වෙනත් කිසිවක් නොලියන්න."
+}}
 """
-    
 
     try:
+        # කතාව ලිවීමත් JSON වලට කොටු කරයි — model must return {"story": "..."}
         story_response = client.models.generate_content(
             model='gemini-3.1-pro-preview',
             contents=story_prompt,
-            config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=800)
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=1000,
+                response_mime_type="application/json"
+            )
         )
-        raw_story = story_response.text.strip()
+
+        # JSON එකෙන් කතාව පමණක් එළියට ගැනීම
+        parsed_step1 = json.loads(story_response.text.strip())
+        raw_story = parsed_step1.get("story", "")
 
         if not raw_story or len(raw_story) < 20:
             raise ValueError("Story generation failed or too short.")
