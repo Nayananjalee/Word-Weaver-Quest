@@ -195,19 +195,23 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     # --- STEP 1: STORY GENERATION (GEMINI 3.1 PRO) ---
     story_prompt = f"""ඔබ ශ්‍රව්‍යාබාධිත කුඩා දරුවන්ට කතා ලියන විශේෂඥයෙකි.
 පහත නීති දැඩිව අනුගමනය කරමින් සිංහල කතාවක් ලියන්න:
-1. අනිවාර්යයෙන්ම වාක්‍ය 5 ත් 8 ත් අතර ප්‍රමාණයක් තිබිය යුතුය. (වාක්‍ය 2-3 කින් කිසිසේත් අවසන් නොකරන්න).
-2. මෙය සැබෑ කතාවක් විය යුතුය. එනම් පැහැදිලි ආරම්භයක්, කතාව ගලායාමක් සහ අවසානයක් තිබිය යුතුය. නිකම්ම වචන එකතු කළ වාක්‍ය ගොඩක් නොවිය යුතුය.
+1. අනිවාර්යයෙන්ම වාක්‍ය 5 ත් 8 ත් අතර ප්‍රමාණයක් තිබිය යුතුය.
+2. මෙය සැබෑ කතාවක් විය යුතුය. පැහැදිලි ආරම්භයක් සහ අවසානයක් තිබිය යුතුය.
 3. පහත වචන සියල්ලම කතාව තුළ අනිවාර්යයෙන්ම භාවිතා කරන්න: {keywords}
 4. {topic_instruction}
-5. ශ්‍රව්‍යාබාධිත දරුවන්ට තේරුම් ගත හැකි ඉතා සරල, එදිනෙදා භාවිතා කරන වචන පමණක් යොදාගන්න.
 
-(කරුණාකර කතාව පමණක් ලබා දෙන්න. මාතෘකා, අංක හෝ වෙනත් කිසිදු විස්තරයක් අවශ්‍ය නැත)"""
+CRITICAL RULES:
+* DO NOT write your thought process or any explanations.
+* DO NOT output any English words.
+* DO NOT confirm that you followed the rules.
+* OUTPUT ONLY THE PURE SINHALA STORY TEXT.
+"""
 
     try:
         story_response = client.models.generate_content(
             model='gemini-3.1-pro-preview',
             contents=story_prompt,
-            config=types.GenerateContentConfig(temperature=0.7, max_output_tokens=1000)
+            config=types.GenerateContentConfig(temperature=0.3, max_output_tokens=1000)
         )
         raw_story = story_response.text.strip()
 
