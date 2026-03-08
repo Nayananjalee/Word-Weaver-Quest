@@ -28,6 +28,9 @@ import os
 import json
 import time
 import random
+import hashlib
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import requests
 import base64
 from datetime import datetime
@@ -67,6 +70,13 @@ app = FastAPI()
 
 # Per-user SRS engines (in-memory; persisted to DB on each update)
 user_srs_engines = {}
+
+# TTS audio cache — avoids regenerating audio for the same text
+tts_cache = {}  # key: hash(text) → value: base64 WAV string
+TTS_CACHE_MAX = 200  # evict oldest if cache grows beyond this
+
+# Thread pool for parallel TTS generation
+tts_executor = ThreadPoolExecutor(max_workers=4)
 
 # ================================================================================
 # MIDDLEWARE — CORS
@@ -167,68 +177,91 @@ def _get_or_create_srs(user_id: str) -> SpacedRepetitionEngine:
 
 def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     """
-    Generate a Sinhala story using Gemini 3.1 Pro Preview.
+    Generate a Sinhala story AND format it as game JSON in a SINGLE Gemini call.
 
-    Builds a pedagogically-sound prompt that ensures:
-      - 5–8 sentences even for a single target word
-      - Each target word appears in 2-3 different sentence contexts
-      - Simple vocabulary for hearing-impaired children
-
-    Returns the raw story text or None on failure.
+    Returns the raw JSON string directly (no second formatting call needed).
+    Uses gemini-2.0-flash for speed.
     """
-    print(f"🔄 Using Gemini 3.1 Pro Preview for story generation...")
+    print(f"🔄 Using Gemini 2.0 Flash for story generation...")
 
     word_list = [w.strip() for w in keywords.split(',') if w.strip()]
     num_words = len(word_list)
     min_sentences = max(5, num_words * 2)
     max_sentences = max(8, num_words * 3)
 
-    topic_instruction = f"\nStory setting/theme: {topic}\n" if topic else ""
+    topic_instruction = f"\nStory setting/theme: {topic}" if topic else ""
 
-    prompt = f"""You are an expert Sinhala children's story writer specializing in hearing therapy for hearing-impaired children aged 4-12.
+    prompt = f"""You are an expert Sinhala children's story writer for a hearing therapy game for hearing-impaired children aged 4-12.
 
-Write a COMPLETE, ENGAGING Sinhala story with {min_sentences} to {max_sentences} sentences that uses these target words:
-{keywords}
-{topic_instruction}
+TARGET WORDS: {keywords}{topic_instruction}
 
-CRITICAL RULES:
-- Write EXACTLY {min_sentences} to {max_sentences} separate sentences (each ending with a period).
-- Each target word MUST appear in at least 2-3 DIFFERENT sentences for repetitive exposure.
-- If there is only 1 target word, build the ENTIRE story around it — use it in many sentences with different verbs and contexts.
-- Keep each sentence SHORT (5-8 Sinhala words).
-- Use SIMPLE vocabulary suitable for young hearing-impaired children.
-- Use concrete nouns, action verbs, colors, sizes, and sensory descriptions.
-- Make the story fun, coherent, and age-appropriate with a beginning, middle, and end.
-- Familiar contexts: home, school, animals, food, family, nature, games.
-- Write ONLY in Sinhala script. No English, no titles, no headings, no explanations.
-- Return ONLY the story text — nothing else.
+TASK: Write a fun, engaging Sinhala story with {min_sentences} to {max_sentences} sentences using the target words, then format it as a quiz JSON.
 
-Example (for target word "හාවා"):
-හාවා වත්තේ ඉන්නවා. හාවාට ලොකු ඇස් තිබුණා. හාවා කැරට් කනවා. පොඩි හාවා දුවනවා. හාවා ගහක් යට නිදාගත්තා. හාවාට මිතුරෝ ආවා. හාවා සතුටින් නැටුවා."""
+STORY RULES:
+- Write a REAL story with a beginning, middle, and end — not just random sentences
+- Each target word MUST appear in at least 2-3 DIFFERENT sentences
+- Keep sentences SHORT (5-8 Sinhala words each)
+- Use SIMPLE vocabulary for young hearing-impaired children
+- Use concrete nouns, action verbs, colors, sizes, familiar contexts (home, school, animals, food, family, nature)
+- Write ONLY in Sinhala script
+- Make it fun and age-appropriate
 
-    max_retries = 3
+QUIZ FORMAT RULES:
+- EVERY sentence becomes a question
+- For sentences with a TARGET WORD, use that as target_word
+- For sentences without a target word, pick the most important NOUN or VERB as target_word
+- Generate exactly 3 phonetically similar Sinhala distractors per target_word
+  - Distractors differ by 1-2 phonemes (voicing: ප→බ, ත→ද, ක→ග; place: ත→ට, ද→ඩ; nasality: ම→බ, න→ද)
+  - All distractors must be real Sinhala words
+- Options array = correct word + 3 distractors in SHUFFLED order
+
+RETURN ONLY THIS JSON (no markdown, no explanation):
+{{
+  "story_sentences": [
+    {{
+      "text": "Full Sinhala sentence",
+      "has_target_word": true,
+      "target_word": "correct_word",
+      "options": ["option1", "option2", "option3", "option4"]
+    }}
+  ]
+}}"""
+
+    max_retries = 2
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
-                model='gemini-3.1-pro-preview',
+                model='gemini-2.0-flash',
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=2048
+                    temperature=0.7 if attempt == 0 else 0.3,
+                    max_output_tokens=4096
                 )
             )
-            story = response.text.strip()
-            if story and len(story) > 10:
-                print("✅ Story generated successfully using Gemini 3.1 Pro Preview!")
-                return story
+            raw_text = response.text.strip()
+            if raw_text and len(raw_text) > 50:
+                # Try to extract valid JSON
+                clean = _extract_json(raw_text)
+                if clean:
+                    # Verify it has sentences
+                    parsed = json.loads(clean)
+                    sentences = parsed.get('story_sentences', parsed if isinstance(parsed, list) else [])
+                    if isinstance(parsed, list):
+                        sentences = parsed
+                    if len(sentences) >= 3:
+                        print(f"✅ Story + JSON generated in single call ({len(sentences)} sentences)")
+                        return clean
+                    else:
+                        print(f"⚠️ Only {len(sentences)} sentences, retrying...")
+                else:
+                    print(f"⚠️ Could not extract JSON (attempt {attempt + 1})")
             else:
-                print(f"⚠️ Gemini returned insufficient content (attempt {attempt + 1}/{max_retries})")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
+                print(f"⚠️ Gemini returned insufficient content (attempt {attempt + 1})")
         except Exception as e:
             print(f"❌ Gemini error (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(2)
+
+        if attempt < max_retries - 1:
+            time.sleep(1)
 
     print("❌ All Gemini attempts failed")
     return None
@@ -436,10 +469,17 @@ def _extract_json(raw_text: str) -> Optional[str]:
 def generate_audio_with_gemini(text: str) -> bytes:
     """
     Generate speech audio with Gemini 2.5 Pro Preview TTS.
+    Uses in-memory cache to avoid re-generating identical phrases.
 
     Returns WAV bytes (16-bit PCM, 24 kHz, mono).
     Voice: Aoede — warm, expressive, child-friendly.
     """
+    # Check cache first
+    cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()
+    if cache_key in tts_cache:
+        print(f"🔊 TTS cache hit for: {text[:30]}...")
+        return tts_cache[cache_key]
+
     prompt = (
         "You are a friendly storyteller reading to hearing-impaired children. "
         "Read the following Sinhala text at a natural pace, clearly, and with a "
@@ -471,7 +511,43 @@ def generate_audio_with_gemini(text: str) -> bytes:
         wf.setframerate(24000)   # 24 kHz
         wf.writeframes(raw_audio)
     wav_buffer.seek(0)
-    return wav_buffer.read()
+    wav_bytes = wav_buffer.read()
+
+    # Store in cache (evict oldest if full)
+    if len(tts_cache) >= TTS_CACHE_MAX:
+        oldest_key = next(iter(tts_cache))
+        del tts_cache[oldest_key]
+    tts_cache[cache_key] = wav_bytes
+    print(f"🔊 TTS generated & cached for: {text[:30]}...")
+
+    return wav_bytes
+
+
+async def pregenerate_tts_for_story(sentences: list) -> dict:
+    """
+    Pre-generate TTS audio for all sentences in parallel using ThreadPoolExecutor.
+    Returns dict mapping sentence text → base64 WAV string.
+    """
+    loop = asyncio.get_event_loop()
+    results = {}
+
+    async def gen_one(text):
+        try:
+            wav_bytes = await loop.run_in_executor(tts_executor, generate_audio_with_gemini, text)
+            return text, base64.b64encode(wav_bytes).decode('utf-8')
+        except Exception as e:
+            print(f"⚠️ TTS pre-gen failed for '{text[:30]}...': {e}")
+            return text, None
+
+    tasks = [gen_one(s['text']) for s in sentences if s.get('text')]
+    completed = await asyncio.gather(*tasks)
+
+    for text, audio_b64 in completed:
+        if audio_b64:
+            results[text] = audio_b64
+
+    print(f"🔊 Pre-generated TTS for {len(results)}/{len(sentences)} sentences")
+    return results
 
 # ================================================================================
 # HELPER — Smart word selection for story generation
@@ -573,27 +649,21 @@ async def get_story(request: StoryRequest):
         keywords = ", ".join(difficult_words)
         print(f"📝 Generating story for: {keywords}")
 
-        # --- 3. Generate raw story ---
+        # --- 3. Generate story + quiz JSON in ONE call ---
         print("\n" + "=" * 60)
-        print("STORY GENERATION PIPELINE (Gemini)")
+        print("STORY GENERATION PIPELINE (Gemini 2.0 Flash — single call)")
         print("=" * 60)
 
-        raw_story = generate_story_with_gemini_fallback(keywords, request.topic)
+        game_json = generate_story_with_gemini_fallback(keywords, request.topic)
 
-        if not raw_story:
+        if not game_json:
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "Story generation failed. Both SinLlama and Gemini are unavailable. "
-                    "Check HF Space status and GOOGLE_API_KEY."
+                    "Story generation failed. Gemini is unavailable. "
+                    "Check GOOGLE_API_KEY."
                 )
             )
-
-        print(f"✅ Raw story generated ({len(raw_story)} chars)")
-
-        # --- 4. Format into game JSON ---
-        print("✨ Formatting story JSON...")
-        game_json = format_story_for_game(raw_story, difficult_words)
 
         try:
             story_data = json.loads(game_json)
@@ -631,7 +701,15 @@ async def get_story(request: StoryRequest):
         if not validated:
             raise HTTPException(status_code=500, detail="Story formatting produced no valid sentences")
 
-        # --- 6. Save to DB & return ---
+        # --- 6. Pre-generate TTS for all sentences in parallel ---
+        print("🔊 Pre-generating TTS audio for all sentences...")
+        try:
+            audio_map = await pregenerate_tts_for_story(validated)
+        except Exception as e:
+            print(f"⚠️ TTS pre-generation failed, frontend will fetch on-demand: {e}")
+            audio_map = {}
+
+        # --- 7. Save to DB & return ---
         full_text = " ".join([s['text'] for s in validated])
 
         story_insert_res = supabase.table('stories').insert({
@@ -652,7 +730,7 @@ async def get_story(request: StoryRequest):
             new_story = {'id': 0, 'story_text': full_text}
 
         new_story['story_sentences'] = validated
-        return {"story": new_story}
+        return {"story": new_story, "audio_map": audio_map}
 
     except HTTPException:
         raise
@@ -1166,17 +1244,16 @@ def health_check():
 def test_story_generation(keywords: str = "හාවා, ඉබ්බා, කුකුළා"):
     """Quick test endpoint: GET /test-story-generation?keywords=හාවා,ඉබ්බා"""
     try:
-        raw_story = generate_story_with_gemini_fallback(keywords)
-        if not raw_story:
+        game_json = generate_story_with_gemini_fallback(keywords)
+        if not game_json:
             return {"success": False, "error": "Gemini story generation failed", "keywords": keywords}
 
         difficult_words = [w.strip() for w in keywords.split(',')]
-        game_json = format_story_for_game(raw_story, difficult_words)
 
         try:
             story_data = json.loads(game_json)
         except json.JSONDecodeError as e:
-            return {"success": False, "error": f"JSON parsing failed: {e}", "raw_story": raw_story, "raw_json": game_json}
+            return {"success": False, "error": f"JSON parsing failed: {e}", "raw_json": game_json}
 
         if isinstance(story_data, list):
             story_data = {"story_sentences": story_data}
@@ -1185,7 +1262,6 @@ def test_story_generation(keywords: str = "හාවා, ඉබ්බා, කු
 
         return {
             "success": True,
-            "raw_story": raw_story,
             "formatted_story": story_data,
             "keywords": difficult_words,
             "sentence_count": len(story_data.get('story_sentences', []))
