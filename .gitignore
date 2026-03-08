@@ -106,3 +106,4 @@ pytestdebug.log
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.vercel

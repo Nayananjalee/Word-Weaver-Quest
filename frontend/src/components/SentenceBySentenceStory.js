@@ -65,11 +65,6 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     }
   }, [stream]);
 
-  // Keep ref always pointing to latest handleGestureUpdate (avoids stale closures in rAF loop)
-  useEffect(() => {
-    handleGestureUpdateRef.current = handleGestureUpdate;
-  }, [handleGestureUpdate]);
-
   // Run gesture recognition loop when gesture mode is active
   useEffect(() => {
     if (!useGesture || !stream || !cameraReady) {
@@ -248,6 +243,9 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answered, currentSentence]);
+
+  // Always keep ref pointing to latest handleGestureUpdate (safe: ref mutation during render is allowed)
+  handleGestureUpdateRef.current = handleGestureUpdate;
 
   /** Move to next sentence or show reward screen */
   const moveToNext = () => {
