@@ -53,9 +53,11 @@ function App() {
         for (let i = 0; i < audioData.length; i++) {
           view[i] = audioData.charCodeAt(i);
         }
-        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+        const mime = data.format === 'wav' ? 'audio/wav' : 'audio/mpeg';
+        const blob = new Blob([arrayBuffer], { type: mime });
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
+        audio.onended = () => URL.revokeObjectURL(audioUrl);
         audio.play();
       } else {
         throw new Error('TTS audio generation failed');
