@@ -343,13 +343,91 @@ JSON FORMAT:
     )
     raw_text = response.text.strip()
 
-    # Robust JSON extraction — strip markdown fences and surrounding prose
-    clean_json = raw_text.replace("```json", "").replace("```", "").strip()
-    start = clean_json.find('{')
-    end = clean_json.rfind('}')
+    # Robust JSON extraction — try multiple strategies
+    clean_json = _extract_json(raw_text)
+    if clean_json:
+        return clean_json
+
+    # If first attempt failed, retry once with stricter prompt
+    print("⚠️ First format attempt produced unparseable JSON, retrying...")
+    retry_prompt = (
+        "The previous response was not valid JSON. "
+        "Return ONLY the JSON object below, with NO markdown, NO explanation, NO extra text.\n\n"
+        + prompt
+    )
+    try:
+        response2 = client.models.generate_content(
+            model='gemini-3.1-pro-preview',
+            contents=retry_prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=4096
+            )
+        )
+        raw_text2 = response2.text.strip()
+        clean_json2 = _extract_json(raw_text2)
+        if clean_json2:
+            return clean_json2
+    except Exception as e:
+        print(f"⚠️ Format retry failed: {e}")
+
+    # Last resort: return whatever we extracted, even if invalid
+    print(f"❌ Could not extract valid JSON. Raw response (first 500 chars): {raw_text[:500]}")
+    return raw_text
+
+
+def _extract_json(raw_text: str) -> Optional[str]:
+    """
+    Try multiple strategies to extract valid JSON from AI response text.
+    Returns the JSON string if parseable, or None.
+    """
+    # Strategy 1: Strip markdown fences
+    clean = raw_text.replace("```json", "").replace("```", "").strip()
+
+    # Strategy 2: Find outermost { ... }
+    start = clean.find('{')
+    end = clean.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        candidate = clean[start:end + 1]
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: Find outermost [ ... ] (array response)
+    start_arr = clean.find('[')
+    end_arr = clean.rfind(']')
+    if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+        candidate = clean[start_arr:end_arr + 1]
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 4: Try the whole cleaned text
+    try:
+        json.loads(clean)
+        return clean
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 5: Remove common trailing corruption (incomplete last entry)
     if start != -1 and end != -1:
-        clean_json = clean_json[start:end + 1]
-    return clean_json
+        candidate = clean[start:end + 1]
+        # Try removing the last incomplete object in an array
+        last_complete = candidate.rfind('},')
+        if last_complete != -1:
+            trimmed = candidate[:last_complete + 1] + ']}'
+            try:
+                json.loads(trimmed)
+                print("⚠️ Recovered JSON by trimming incomplete last entry")
+                return trimmed
+            except json.JSONDecodeError:
+                pass
+
+    return None
 
 # ================================================================================
 # HELPER — Gemini TTS
@@ -519,8 +597,13 @@ async def get_story(request: StoryRequest):
 
         try:
             story_data = json.loads(game_json)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="Failed to parse story JSON from AI")
+        except json.JSONDecodeError as parse_err:
+            print(f"❌ JSON parse error: {parse_err}")
+            print(f"❌ Raw game_json (first 500 chars): {game_json[:500] if game_json else 'EMPTY'}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse story JSON from AI. Please try again."
+            )
 
         # Normalize shape
         if isinstance(story_data, list):
