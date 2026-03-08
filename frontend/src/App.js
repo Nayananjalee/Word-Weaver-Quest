@@ -4,6 +4,7 @@ import SentenceBySentenceStory from './components/SentenceBySentenceStory';
 import WordManager from './components/WordManager';
 import SharedCameraProvider from './components/SharedCameraProvider';
 import StoryLoadingAnimation from './components/StoryLoadingAnimation';
+import gestureService from './components/GestureRecognizerService';
 import './App.css';
 
 // Link back to main SilentSpark research app (if running as embedded module)
@@ -15,8 +16,13 @@ function App() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState('game'); // 'game', 'words'
+  const [activeTab, setActiveTab] = useState('game');
   const [selectedTopic, setSelectedTopic] = useState('a friendly animal');
+
+  // Preload MediaPipe gesture recognizer on app mount
+  useEffect(() => {
+    gestureService.preload();
+  }, []);
 
   // Topic options for story generation - child-friendly, culturally relevant
   const storyTopics = [
