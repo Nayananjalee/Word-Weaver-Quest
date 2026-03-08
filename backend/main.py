@@ -214,7 +214,7 @@ EXAMPLE:
         story_response = client.models.generate_content(
             model='gemini-3.1-pro-preview',
             contents=story_prompt,
-            config=types.GenerateContentConfig(temperature=0.4, max_output_tokens=1000)
+            config=types.GenerateContentConfig(temperature=0.4, max_output_tokens=5000)
         )
         raw_output = story_response.text.strip()
 
