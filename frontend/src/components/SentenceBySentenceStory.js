@@ -288,13 +288,13 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     }
     window.speechSynthesis.cancel();
 
-    // Helper to play base64 WAV audio
-    const playBase64Audio = (b64) => {
+    // Helper to play base64 audio (supports both MP3 and WAV)
+    const playBase64Audio = (b64, mimeType = 'audio/mpeg') => {
       const audioData = atob(b64);
       const arrayBuffer = new ArrayBuffer(audioData.length);
       const view = new Uint8Array(arrayBuffer);
       for (let i = 0; i < audioData.length; i++) view[i] = audioData.charCodeAt(i);
-      const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+      const blob = new Blob([arrayBuffer], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audio.onended = () => URL.revokeObjectURL(url);
@@ -317,11 +317,12 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
       });
       if (response.ok) {
         const data = await response.json();
-        playBase64Audio(data.audio);
+        const mime = data.format === 'wav' ? 'audio/wav' : 'audio/mpeg';
+        playBase64Audio(data.audio, mime);
         return;
       }
     } catch (err) {
-      console.warn('Gemini TTS failed, falling back to browser TTS:', err);
+      console.warn('TTS failed, falling back to browser TTS:', err);
     }
     // 3. Last resort: browser Web Speech API (si-LK Sinhala)
     const utterance = new SpeechSynthesisUtterance(text);
