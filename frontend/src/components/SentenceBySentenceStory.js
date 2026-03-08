@@ -19,7 +19,7 @@ import API_BASE_URL from '../config';
  *   onScoreUpdate — called with live score for the header badge
  *   userId        — current child's user ID
  */
-function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId }) {
+function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScoreUpdate, userId }) {
   // ─── Game state ───
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);      // true → answer phase
@@ -55,13 +55,15 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
   const gestureLoopRef = useRef(null);
   const { stream, isInitialized: cameraReady } = useSharedCamera();
 
-  // Attach camera stream to preview video element
-  useEffect(() => {
-    if (useGesture && stream && previewVideoRef.current) {
-      previewVideoRef.current.srcObject = stream;
-      previewVideoRef.current.play().catch(() => {});
+  // Ref callback: re-attach camera stream every time React creates a new <video> element
+  // (this fires on every phase transition since each render branch has its own <video>)
+  const videoRefCallback = useCallback((videoElement) => {
+    previewVideoRef.current = videoElement;
+    if (videoElement && stream) {
+      videoElement.srcObject = stream;
+      videoElement.play().catch(() => {});
     }
-  }, [useGesture, stream]);
+  }, [stream]);
 
   // Run gesture recognition loop when gesture mode is active
   useEffect(() => {
@@ -293,6 +295,25 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
     }
     window.speechSynthesis.cancel();
 
+    // Helper to play base64 WAV audio
+    const playBase64Audio = (b64) => {
+      const audioData = atob(b64);
+      const arrayBuffer = new ArrayBuffer(audioData.length);
+      const view = new Uint8Array(arrayBuffer);
+      for (let i = 0; i < audioData.length; i++) view[i] = audioData.charCodeAt(i);
+      const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+      const audio = new Audio(URL.createObjectURL(blob));
+      currentAudioRef.current = audio;
+      audio.play();
+    };
+
+    // 1. Try pre-generated audio from audioMap (instant — no network call)
+    if (audioMap[text]) {
+      playBase64Audio(audioMap[text]);
+      return;
+    }
+
+    // 2. Fallback: fetch from TTS endpoint (with server-side caching)
     try {
       const response = await fetch(`${API_BASE_URL}/text-to-speech`, {
         method: 'POST',
@@ -301,20 +322,13 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
       });
       if (response.ok) {
         const data = await response.json();
-        const audioData = atob(data.audio);
-        const arrayBuffer = new ArrayBuffer(audioData.length);
-        const view = new Uint8Array(arrayBuffer);
-        for (let i = 0; i < audioData.length; i++) view[i] = audioData.charCodeAt(i);
-        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
-        const audio = new Audio(URL.createObjectURL(blob));
-        currentAudioRef.current = audio;
-        audio.play();
+        playBase64Audio(data.audio);
         return;
       }
     } catch (err) {
       console.warn('Gemini TTS failed, falling back to browser TTS:', err);
     }
-    // Fallback: browser Web Speech API (si-LK Sinhala)
+    // 3. Last resort: browser Web Speech API (si-LK Sinhala)
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'si-LK';
     utterance.rate = 1.0;
@@ -496,7 +510,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
             boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
             background: '#1a1a2e'
           }}>
-            <video ref={previewVideoRef} autoPlay playsInline muted
+            <video ref={videoRefCallback} autoPlay playsInline muted
               style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -609,7 +623,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
           boxShadow: '0 4px 20px rgba(156,39,176,0.4)',
           background: '#1a1a2e'
         }}>
-          <video ref={previewVideoRef} autoPlay playsInline muted
+          <video ref={videoRefCallback} autoPlay playsInline muted
             style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
