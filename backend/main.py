@@ -165,7 +165,7 @@ def _get_or_create_srs(user_id: str) -> SpacedRepetitionEngine:
 # HELPER — Story generation (Gemini)
 # ================================================================================
 
-def generate_story_with_gemini_fallback(keywords: str) -> str:
+def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     """
     Generate a Sinhala story using Gemini 3.1 Pro Preview.
 
@@ -183,10 +183,13 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
     min_sentences = max(5, num_words * 2)
     max_sentences = max(8, num_words * 3)
 
+    topic_instruction = f"\nStory setting/theme: {topic}\n" if topic else ""
+
     prompt = f"""You are an expert Sinhala children's story writer specializing in hearing therapy for hearing-impaired children aged 4-12.
 
 Write a COMPLETE, ENGAGING Sinhala story with {min_sentences} to {max_sentences} sentences that uses these target words:
 {keywords}
+{topic_instruction}
 
 CRITICAL RULES:
 - Write EXACTLY {min_sentences} to {max_sentences} separate sentences (each ending with a period).
@@ -211,7 +214,7 @@ Example (for target word "හාවා"):
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7,
-                    max_output_tokens=600
+                    max_output_tokens=2048
                 )
             )
             story = response.text.strip()
@@ -332,7 +335,11 @@ JSON FORMAT:
 
     response = client.models.generate_content(
         model='gemini-3.1-pro-preview',
-        contents=prompt
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=4096
+        )
     )
     raw_text = response.text.strip()
 
@@ -357,8 +364,8 @@ def generate_audio_with_gemini(text: str) -> bytes:
     """
     prompt = (
         "You are a friendly storyteller reading to hearing-impaired children. "
-        "Read the following Sinhala text slowly, very clearly, and with a highly "
-        f"expressive, warm, and enthusiastic emotion. Text: {text}"
+        "Read the following Sinhala text at a natural pace, clearly, and with a "
+        f"warm and expressive emotion. Text: {text}"
     )
 
     response = client.models.generate_content(
@@ -493,7 +500,7 @@ async def get_story(request: StoryRequest):
         print("STORY GENERATION PIPELINE (Gemini)")
         print("=" * 60)
 
-        raw_story = generate_story_with_gemini_fallback(keywords)
+        raw_story = generate_story_with_gemini_fallback(keywords, request.topic)
 
         if not raw_story:
             raise HTTPException(
