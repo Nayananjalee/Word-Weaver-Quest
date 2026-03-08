@@ -23,7 +23,7 @@ Run:
   API docs: http://localhost:8000/docs
 ================================================================================
 """
-
+import re
 import os
 import json
 import time
@@ -184,12 +184,13 @@ def _get_or_create_srs(user_id: str) -> SpacedRepetitionEngine:
 
 def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
     """
-    Two-step Architecture:
-    1. Generator: Uses Gemini 3.1 Pro for high-quality Sinhala story writing.
-    2. Formatter: Uses Gemini 2.5 Flash for lightning-fast JSON structuring.
+    Two-step Architecture with XML Tagging:
+    1. Generator: Pro 3.1 writes the story inside <story> tags.
+    2. Formatter: Flash 2.5 structures it into JSON.
     """
     print(f"✍️ Step 1: Writing beautiful Sinhala story using Gemini 3.1 Pro...")
 
+    word_list = [w.strip() for w in keywords.split(',') if w.strip()]
     topic_instruction = f"මාතෘකාව: {topic}" if topic else ""
 
     # --- STEP 1: STORY GENERATION (GEMINI 3.1 PRO) ---
@@ -199,36 +200,36 @@ def generate_story_with_gemini_fallback(keywords: str, topic: str = "") -> str:
 
 CRITICAL RULES:
 1. Write exactly 5 to 8 sentences.
-2. Make it a real story (beginning, middle, end) written as ONE SINGLE PARAGRAPH.
-3. NO English words, NO bullet points, NO numbering, NO explanations.
-4. YOU MUST RETURN ONLY VALID JSON.
+2. YOU MUST ENCLOSE THE SINHALA STORY WITHIN <story> AND </story> TAGS.
+3. Everything inside the tags must be a single paragraph of pure Sinhala text.
 
-JSON FORMAT:
-{{
-  "story": "තනි ඡේදයක් ලෙස සම්පූර්ණ සිංහල කතාව මෙහි ලියන්න. වෙනත් කිසිවක් නොලියන්න."
-}}
+EXAMPLE:
+<story>
+දවසක් පුංචි කමල් පාර දිගේ ඉස්කෝලේ යමින් හිටියා. පාර අයිනේ පුංචි බලු පැටියෙක් තනිවෙලා ඉන්නවා කමල් දැක්කා. බලු පැටියාට ගොඩක් බඩගිනි වෙලා බව කමල්ට තේරුණා. කමල් ඉක්මනට එයාගේ කෑම පෙට්ටියෙන් බත් ටිකක් පැටියාට දුන්නා. බලු පැටියා සතුටින් වලිගය වනලා බත් ටික කෑවා. අනුන්ට උදව් කිරීම ගොඩක් හොඳ පුරුද්දක් කියලා කමල් දැනගත්තා.
+</story>
 """
 
     try:
-        # කතාව ලිවීමත් JSON වලට කොටු කරයි — model must return {"story": "..."}
+        # JSON Mime Type ඉවත් කර ඇත — plain text response, XML tags වලින් කතාව ගැනීම
         story_response = client.models.generate_content(
             model='gemini-3.1-pro-preview',
             contents=story_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,
-                max_output_tokens=1000,
-                response_mime_type="application/json"
-            )
+            config=types.GenerateContentConfig(temperature=0.4, max_output_tokens=1000)
         )
+        raw_output = story_response.text.strip()
 
-        # JSON එකෙන් කතාව පමණක් එළියට ගැනීම
-        parsed_step1 = json.loads(story_response.text.strip())
-        raw_story = parsed_step1.get("story", "")
+        # Python Regex මගින් <story> ටැග් ඇතුළත ඇති කතාව පමණක් කපා ගැනීම
+        match = re.search(r'<story>(.*?)</story>', raw_output, re.DOTALL)
+        if match:
+            raw_story = match.group(1).strip()
+        else:
+            # ටැග් නැතිව ආවොත් කෙලින්ම ගන්නවා
+            raw_story = raw_output.replace('<story>', '').replace('</story>', '').strip()
 
         if not raw_story or len(raw_story) < 20:
             raise ValueError("Story generation failed or too short.")
 
-        print(f"✅ Story written successfully:\n{raw_story}\n")
+        print(f"✅ Pure Sinhala Story Extracted:\n{raw_story}\n")
 
     except Exception as e:
         print(f"❌ Step 1 (Pro Writer) Failed: {e}")
@@ -240,18 +241,18 @@ JSON FORMAT:
     format_prompt = f"""Here is a Sinhala story:
 "{raw_story}"
 
-Convert this into a quiz JSON format.
+Convert this ENTIRE STORY into a quiz JSON format.
 RULES:
-1. Break into sentences.
+1. Break the story into separate sentences. YOU MUST INCLUDE EVERY SINGLE SENTENCE.
 2. Each sentence needs a "target_word" (pick an important noun/verb from the sentence).
-3. Generate 3 phonetically similar Sinhala distractor words.
+3. Generate exactly 3 phonetically similar Sinhala distractor words per sentence.
 4. "options" = [target_word + 3 distractors] in random order.
 
 JSON SCHEMA:
 {{
   "story_sentences": [
     {{
-      "text": "sentence text",
+      "text": "First sentence text",
       "has_target_word": true,
       "target_word": "word",
       "options": ["opt1", "opt2", "opt3", "opt4"]
