@@ -288,8 +288,8 @@ function SentenceBySentenceStory({ storyData, audioMap = {}, onComplete, onScore
     }
     window.speechSynthesis.cancel();
 
-    // Helper to play base64 audio (supports both MP3 and WAV)
-    const playBase64Audio = (b64, mimeType = 'audio/mpeg') => {
+    // Helper to play base64 audio (supports both WAV and MP3)
+    const playBase64Audio = (b64, mimeType = 'audio/wav') => {
       const audioData = atob(b64);
       const arrayBuffer = new ArrayBuffer(audioData.length);
       const view = new Uint8Array(arrayBuffer);
