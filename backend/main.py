@@ -206,6 +206,7 @@ CRITICAL RULES:
 * DO NOT confirm that you followed the rules.
 * OUTPUT ONLY THE PURE SINHALA STORY TEXT.
 """
+    
 
     try:
         story_response = client.models.generate_content(
@@ -490,7 +491,7 @@ def generate_audio(text: str) -> bytes:
     # Primary: Gemini 2.5 Pro Preview TTS (works for Sinhala + English)
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-pro-preview-tts',
+            model='gemini-2.5-flash-preview-tts',
             contents=text,
             config=types.GenerateContentConfig(
                 response_modalities=["AUDIO"]
