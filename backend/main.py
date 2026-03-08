@@ -42,6 +42,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from google import genai
 from google.genai import types
+from gtts import gTTS
 import wave
 import io
 from dotenv import load_dotenv
@@ -62,8 +63,14 @@ load_dotenv()
 HF_TOKEN = "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"
 HF_MODEL_ID = "thulasika-n/SinLlama-Story-Teller"
 
-# Google Gemini client (text generation + TTS)
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+# Google Gemini client (text generation)
+_google_api_key = os.getenv("GOOGLE_API_KEY")
+if not _google_api_key:
+    print("⚠️ WARNING: GOOGLE_API_KEY is not set! Story generation will fail.")
+    print("   Set it in .env (local) or Render Dashboard → Environment (production).")
+else:
+    print(f"✅ GOOGLE_API_KEY loaded (starts with {_google_api_key[:8]}...)")
+client = genai.Client(api_key=_google_api_key)
 
 # FastAPI app
 app = FastAPI()
@@ -463,16 +470,18 @@ def _extract_json(raw_text: str) -> Optional[str]:
     return None
 
 # ================================================================================
-# HELPER — Gemini TTS
+# HELPER — Text-to-Speech (gTTS for Sinhala, Gemini for English fallback)
 # ================================================================================
 
-def generate_audio_with_gemini(text: str) -> bytes:
+def generate_audio(text: str) -> bytes:
     """
-    Generate speech audio with Gemini 2.5 Pro Preview TTS.
-    Uses in-memory cache to avoid re-generating identical phrases.
+    Generate speech audio for Sinhala text using gTTS (Google Translate TTS).
 
-    Returns WAV bytes (16-bit PCM, 24 kHz, mono).
-    Voice: Aoede — warm, expressive, child-friendly.
+    gTTS supports Sinhala natively and produces MP3 audio.
+    Gemini TTS does NOT support Sinhala script (returns finish_reason=OTHER).
+
+    Uses in-memory cache to avoid re-generating identical phrases.
+    Returns MP3 bytes.
     """
     # Check cache first
     cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()
@@ -480,47 +489,64 @@ def generate_audio_with_gemini(text: str) -> bytes:
         print(f"🔊 TTS cache hit for: {text[:30]}...")
         return tts_cache[cache_key]
 
-    prompt = (
-        "You are a friendly storyteller reading to hearing-impaired children. "
-        "Read the following Sinhala text at a natural pace, clearly, and with a "
-        f"warm and expressive emotion. Text: {text}"
-    )
+    # Detect if text contains Sinhala unicode (range U+0D80–U+0DFF)
+    has_sinhala = any('\u0D80' <= ch <= '\u0DFF' for ch in text)
 
-    response = client.models.generate_content(
-        model='gemini-2.5-pro-preview-tts',
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name="Aoede"
+    if has_sinhala:
+        # Use gTTS — reliable Sinhala support
+        print(f"🔊 gTTS generating Sinhala audio for: {text[:40]}...")
+        tts = gTTS(text=text, lang='si', slow=False)
+        mp3_buffer = io.BytesIO()
+        tts.write_to_fp(mp3_buffer)
+        mp3_buffer.seek(0)
+        audio_bytes = mp3_buffer.read()
+    else:
+        # For non-Sinhala text, try Gemini TTS first, fall back to gTTS
+        try:
+            prompt = f"Read this text clearly and warmly: {text}"
+            response = client.models.generate_content(
+                model='gemini-2.5-pro-preview-tts',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name="Aoede"
+                            )
+                        )
                     )
                 )
             )
-        )
-    )
-
-    raw_audio = response.candidates[0].content.parts[0].inline_data.data
-
-    # Wrap raw PCM into a WAV container
-    wav_buffer = io.BytesIO()
-    with wave.open(wav_buffer, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)       # 16-bit
-        wf.setframerate(24000)   # 24 kHz
-        wf.writeframes(raw_audio)
-    wav_buffer.seek(0)
-    wav_bytes = wav_buffer.read()
+            if (response.candidates and response.candidates[0].content
+                    and response.candidates[0].content.parts):
+                raw_audio = response.candidates[0].content.parts[0].inline_data.data
+                wav_buffer = io.BytesIO()
+                with wave.open(wav_buffer, 'wb') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(24000)
+                    wf.writeframes(raw_audio)
+                wav_buffer.seek(0)
+                audio_bytes = wav_buffer.read()
+            else:
+                raise ValueError("Gemini TTS returned no audio")
+        except Exception as e:
+            print(f"⚠️ Gemini TTS failed ({e}), falling back to gTTS")
+            tts = gTTS(text=text, lang='en', slow=False)
+            mp3_buffer = io.BytesIO()
+            tts.write_to_fp(mp3_buffer)
+            mp3_buffer.seek(0)
+            audio_bytes = mp3_buffer.read()
 
     # Store in cache (evict oldest if full)
     if len(tts_cache) >= TTS_CACHE_MAX:
         oldest_key = next(iter(tts_cache))
         del tts_cache[oldest_key]
-    tts_cache[cache_key] = wav_bytes
-    print(f"🔊 TTS generated & cached for: {text[:30]}...")
+    tts_cache[cache_key] = audio_bytes
+    print(f"🔊 TTS generated & cached ({len(audio_bytes)} bytes) for: {text[:30]}...")
 
-    return wav_bytes
+    return audio_bytes
 
 
 async def pregenerate_tts_for_story(sentences: list) -> dict:
@@ -533,7 +559,7 @@ async def pregenerate_tts_for_story(sentences: list) -> dict:
 
     async def gen_one(text):
         try:
-            wav_bytes = await loop.run_in_executor(tts_executor, generate_audio_with_gemini, text)
+            wav_bytes = await loop.run_in_executor(tts_executor, generate_audio, text)
             return text, base64.b64encode(wav_bytes).decode('utf-8')
         except Exception as e:
             print(f"⚠️ TTS pre-gen failed for '{text[:30]}...': {e}")
@@ -661,11 +687,13 @@ async def get_story(request: StoryRequest):
         game_json = generate_story_with_gemini_fallback(keywords, request.topic)
 
         if not game_json:
+            key_status = "SET" if os.getenv("GOOGLE_API_KEY") else "MISSING"
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "Story generation failed. Gemini is unavailable. "
-                    "Check GOOGLE_API_KEY."
+                    f"Story generation failed after all retries. "
+                    f"GOOGLE_API_KEY is {key_status}. "
+                    f"Check Render logs for detailed error messages."
                 )
             )
 
@@ -777,10 +805,10 @@ async def submit_answer(request: AnswerRequest):
 
 @app.post("/text-to-speech")
 async def generate_speech(request: TTSRequest):
-    """Convert Sinhala text to WAV audio via Gemini TTS. Returns base64."""
+    """Convert Sinhala text to audio via gTTS. Returns base64."""
     try:
-        audio_bytes = generate_audio_with_gemini(request.text)
-        return {"audio": base64.b64encode(audio_bytes).decode('utf-8'), "format": "wav"}
+        audio_bytes = generate_audio(request.text)
+        return {"audio": base64.b64encode(audio_bytes).decode('utf-8'), "format": "mp3"}
     except Exception as e:
         print(f"Error in text-to-speech: {e}")
         raise HTTPException(status_code=500, detail=str(e))
