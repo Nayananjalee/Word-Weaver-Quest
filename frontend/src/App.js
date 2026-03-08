@@ -4,8 +4,6 @@ import API_BASE_URL from './config';
 const RESEARCH_APP_URL = process.env.REACT_APP_RESEARCH_URL || 'http://localhost:5173';
 import SentenceBySentenceStory from './components/SentenceBySentenceStory';
 import WordManager from './components/WordManager';
-import ProgressDashboard from './components/ProgressDashboard';
-import SpacedRepetitionReview from './components/SpacedRepetitionReview';
 import ParentTherapistDashboard from './components/ParentTherapistDashboard';
 import SharedCameraProvider from './components/SharedCameraProvider';
 import StoryLoadingAnimation from './components/StoryLoadingAnimation';
@@ -23,7 +21,7 @@ function App() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState('game'); // 'game', 'words', 'progress', 'review', 'reports'
+  const [activeTab, setActiveTab] = useState('game'); // 'game', 'words', 'reports'
   const [selectedTopic, setSelectedTopic] = useState('a friendly animal');
 
   // Topic options for story generation - child-friendly, culturally relevant
@@ -54,7 +52,7 @@ function App() {
         for (let i = 0; i < audioData.length; i++) {
           view[i] = audioData.charCodeAt(i);
         }
-        const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
+        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
         audio.play();
@@ -257,26 +255,6 @@ function App() {
             📝 Words
           </button>
           <button
-            onClick={() => setActiveTab('progress')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'progress'
-                ? 'bg-gradient-to-r from-teal-400 to-cyan-400 text-white shadow-lg scale-105'
-                : 'bg-white/30 text-white hover:bg-white/40'
-            }`}
-          >
-            📈 Progress
-          </button>
-          <button
-            onClick={() => setActiveTab('review')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${
-              activeTab === 'review'
-                ? 'bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-lg scale-105'
-                : 'bg-white/30 text-white hover:bg-white/40'
-            }`}
-          >
-            🧠 Review
-          </button>
-          <button
             onClick={() => setActiveTab('reports')}
             className={`px-6 py-2 rounded-full font-bold transition-all ${
               activeTab === 'reports'
@@ -373,18 +351,6 @@ function App() {
           {activeTab === 'words' && userId && (
             <div className="flex-1 overflow-auto">
               <WordManager userId={userId} />
-            </div>
-          )}
-
-          {activeTab === 'progress' && userId && (
-            <div className="flex-1 overflow-auto">
-              <ProgressDashboard userId={userId} />
-            </div>
-          )}
-
-          {activeTab === 'review' && userId && (
-            <div className="flex-1 overflow-auto">
-              <SpacedRepetitionReview userId={userId} />
             </div>
           )}
 
