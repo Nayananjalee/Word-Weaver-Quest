@@ -119,7 +119,10 @@ from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+import wave
+import io
 from dotenv import load_dotenv
 
 # Local SQLite database (replaces Supabase)
@@ -201,7 +204,7 @@ HF_MODEL_ID = "thulasika-n/SinLlama-Story-Teller"  # Your model ID
 
 # Initialize External APIs
 # Configure Google Gemini AI for story formatting and fallback
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Database is already initialized via 'from database import db as supabase'
 # SQLite database file: word_weaver.db (auto-created on first run)
@@ -458,7 +461,7 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
         4. Return story or None
     """
     # Log that we're using fallback model
-    print(f"🔄 Using Gemini 2.5 Flash fallback for story generation...")
+    print(f"🔄 Using Gemini 3.1 Pro Preview for story generation...")
     
     # Build prompt for Gemini with strict requirements
     prompt = f"""
@@ -492,12 +495,11 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # Initialize Gemini model
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            # Generate story with specific parameters
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            # Generate story with specific parameters using new SDK
+            response = client.models.generate_content(
+                model='gemini-3.1-pro-preview',
+                contents=prompt,
+                config=types.GenerateContentConfig(
                     temperature=0.7,
                     max_output_tokens=300
                 )
@@ -506,7 +508,7 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
             
             # Validate that we got actual Sinhala content
             if story and len(story) > 10:
-                print("✅ Story generated successfully using Gemini fallback!")
+                print("✅ Story generated successfully using Gemini 3.1 Pro Preview!")
                 return story
             else:
                 print(f"⚠️ Gemini returned insufficient content on attempt {attempt + 1}/{max_retries}")
@@ -520,7 +522,7 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
                 time.sleep(2)
                 continue
     
-    print("❌ All Gemini fallback attempts failed")
+    print("❌ All Gemini 3.1 Pro Preview attempts failed")
     return None
 
 def generate_story_with_huggingface(keywords: str):
@@ -677,35 +679,62 @@ def format_story_for_game(raw_story_text: str, difficult_words: list):
     }}
     """
     
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model='gemini-3.1-pro-preview',
+        contents=prompt
+    )
     clean_json = response.text.strip().replace("```json", "").replace("```", "")
     return clean_json
 
-def generate_audio_with_gtts(text: str) -> bytes:
+def generate_audio_with_gemini(text: str) -> bytes:
     """
-    Generates audio using Google Text-to-Speech (gTTS).
+    Generates audio using Gemini 2.5 Pro Preview TTS.
     
     Args:
         text: Sinhala text to convert to speech
     
     Returns:
-        bytes: MP3 audio data
+        bytes: WAV audio data
     
     Raises:
         Exception: If audio generation fails
     
-    Note: Uses gTTS with Sinhala (si) language support.
-          Slow=True for clearer pronunciation for hearing-impaired children.
+    Note: Uses Gemini TTS with expressive prosody optimized for hearing-impaired children.
+          Returns 16-bit PCM WAV at 24000 Hz.
     """
-    from gtts import gTTS
-    import io
+    prompt = (
+        "You are a friendly storyteller reading to hearing-impaired children. "
+        "Read the following Sinhala text slowly, very clearly, and with a highly "
+        f"expressive, warm, and enthusiastic emotion. Text: {text}"
+    )
     
-    tts = gTTS(text=text, lang='si', slow=True)
-    audio_buffer = io.BytesIO()
-    tts.write_to_fp(audio_buffer)
-    audio_buffer.seek(0)
-    return audio_buffer.read()
+    response = client.models.generate_content(
+        model='gemini-2.5-pro-preview-tts',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name="Aoede"
+                    )
+                )
+            )
+        )
+    )
+    
+    # Extract raw 16-bit PCM audio at 24000 Hz
+    raw_audio = response.candidates[0].content.parts[0].inline_data.data
+    
+    # Wrap raw PCM bytes into a valid WAV file
+    wav_buffer = io.BytesIO()
+    with wave.open(wav_buffer, 'wb') as wf:
+        wf.setnchannels(1)        # Mono
+        wf.setsampwidth(2)        # 16-bit (2 bytes)
+        wf.setframerate(24000)    # 24000 Hz sample rate
+        wf.writeframes(raw_audio)
+    wav_buffer.seek(0)
+    return wav_buffer.read()
 
 # ======================================
 # 6. API ENDPOINTS
@@ -1295,14 +1324,13 @@ def health_check():
     
     # Test Gemini
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        test_response = model.generate_content(
-            "Test",
-            generation_config=genai.GenerationConfig(max_output_tokens=10)
+        test_response = client.models.generate_content(
+            model='gemini-3.1-pro-preview',
+            contents='Test'
         )
         health_status["services"]["gemini"] = {
             "status": "available",
-            "message": "Gemini 2.5 Flash is responding"
+            "message": "Gemini 3.1 Pro Preview is responding"
         }
     except Exception as e:
         health_status["services"]["gemini"] = {
@@ -1475,9 +1503,9 @@ async def generate_speech(request: TTSRequest):
         Frontend decodes base64 and plays audio for child
     """
     try:
-        audio_content = generate_audio_with_gtts(request.text)
+        audio_content = generate_audio_with_gemini(request.text)
         audio_base64 = base64.b64encode(audio_content).decode('utf-8')
-        return {"audio": audio_base64, "format": "mp3"}
+        return {"audio": audio_base64, "format": "wav"}
     except Exception as e:
         print(f"Error in text-to-speech: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -3625,7 +3653,7 @@ def get_system_info():
             "frontend": "React 19 + TailwindCSS",
             "database": "SQLite (local) / Supabase (production)",
             "ml": "Scikit-learn, XGBoost, Custom models",
-            "llm": "Google Gemini 2.5 Flash + SinLlama",
+            "llm": "Google Gemini 3.1 Pro Preview + Gemini 2.5 Pro TTS + SinLlama",
             "cv": "TensorFlow.js + MediaPipe (gaze/gesture)"
         }
     }
