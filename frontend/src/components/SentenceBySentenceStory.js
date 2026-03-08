@@ -414,7 +414,7 @@ function SentenceBySentenceStory({ storyData, onComplete, onScoreUpdate, userId 
         for (let i = 0; i < audioData.length; i++) {
           view[i] = audioData.charCodeAt(i);
         }
-        const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
+        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
         audio.play();
