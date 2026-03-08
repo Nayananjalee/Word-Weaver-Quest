@@ -463,33 +463,42 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
     # Log that we're using fallback model
     print(f"🔄 Using Gemini 3.1 Pro Preview for story generation...")
     
+    # Count target words to calibrate story length
+    word_list = [w.strip() for w in keywords.split(',') if w.strip()]
+    num_words = len(word_list)
+    
+    # Research: Repetitive exposure in varied sentence contexts maximizes retention
+    # (Nation, 2001; Webb, 2007). Each word should appear 2-3 times minimum.
+    # Even with 1 word, we need 5-8 sentences for meaningful story context.
+    min_sentences = max(5, num_words * 2)
+    max_sentences = max(8, num_words * 3)
+    
     # Build prompt for Gemini with strict requirements
-    prompt = f"""
-    You are a Sinhala children's story writer for hearing-impaired children aged 4-12.
-    
-    Write a SHORT, SIMPLE Sinhala story (3-5 sentences) that includes these target words:
-    {keywords}
-    
-    Requirements:
-    - Use SIMPLE vocabulary suitable for young children with hearing impairment
-    - Include ALL the target words naturally in the story
-    - Keep sentences SHORT (5-8 words each)
-    - Make the story engaging, fun, and age-appropriate
-    - Use concrete nouns and action verbs (easier for hearing-impaired children)
-    - Avoid abstract concepts and idioms
-    - Include visual/sensory descriptions (colors, sizes, actions)
-    - Write ONLY in Sinhala script (no English)
-    - Do NOT add titles, headings, or explanations
-    - Return ONLY the story text
-    
-    Pedagogical guidelines (ref: Knoors & Marschark, 2020):
-    - Repetition of key words aids retention
-    - Short declarative sentences are most accessible
-    - Familiar contexts (home, school, animals, food) are preferred
-    
-    Example format:
-    කුකුළා උදේ හඬනවා. හාවා වතුරේ යනවා. ඔවුන් හොඳ මිතුරන්.
-    """
+    prompt = f"""You are an expert Sinhala children's story writer specializing in hearing therapy for hearing-impaired children aged 4-12.
+
+Write a COMPLETE, ENGAGING Sinhala story with {min_sentences} to {max_sentences} sentences that uses these target words:
+{keywords}
+
+CRITICAL RULES:
+- Write EXACTLY {min_sentences} to {max_sentences} separate sentences (each ending with a period).
+- Each target word MUST appear in at least 2-3 DIFFERENT sentences for repetitive exposure.
+- If there is only 1 target word, build the ENTIRE story around it — use it in many sentences with different verbs and contexts.
+- Keep each sentence SHORT (5-8 Sinhala words).
+- Use SIMPLE vocabulary suitable for young hearing-impaired children.
+- Use concrete nouns, action verbs, colors, sizes, and sensory descriptions.
+- Make the story fun, coherent, and age-appropriate with a beginning, middle, and end.
+- Familiar contexts: home, school, animals, food, family, nature, games.
+- Write ONLY in Sinhala script. No English, no titles, no headings, no explanations.
+- Return ONLY the story text — nothing else.
+
+Pedagogical basis (Knoors & Marschark, 2020; Nation, 2001; Webb, 2007):
+- Repetition of target words across varied sentence contexts maximizes retention.
+- Short declarative sentences are most accessible for hearing-impaired learners.
+- Story narrative structure (beginning→middle→end) aids comprehension and engagement.
+- Each re-encounter with a word in a new context deepens phonological and semantic memory.
+
+Example (for target word "හාවා"):
+හාවා වත්තේ ඉන්නවා. හාවාට ලොකු ඇස් තිබුණා. හාවා කැරට් කනවා. පොඩි හාවා දුවනවා. හාවා ගහක් යට නිදාගත්තා. හාවාට මිතුරෝ ආවා. හාවා සතුටින් නැටුවා."""
     
     # Retry loop (up to 3 attempts)
     max_retries = 3
@@ -501,7 +510,7 @@ def generate_story_with_gemini_fallback(keywords: str) -> str:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7,
-                    max_output_tokens=300
+                    max_output_tokens=600
                 )
             )
             story = response.text.strip()
@@ -649,41 +658,49 @@ def format_story_for_game(raw_story_text: str, difficult_words: list):
     """
     words_list = ", ".join(difficult_words)
     
-    prompt = f"""
-    I have a raw Sinhala story. Please format it for a hearing therapy game for hearing-impaired children.
-    
-    RAW STORY: "{raw_story_text}"
-    TARGET WORDS: {words_list}
-    
-    INSTRUCTIONS:
-    1. Break the story into sentences.
-    2. Identify sentences that contain the Target Words.
-    3. If a target word is missing from a sentence, select another simple noun as the target.
-    4. Generate 3 phonetically similar Sinhala distractor words for each target.
-       - Distractors should differ by 1-2 phonemes (e.g., ප→බ, ත→ද, ක→ග voicing changes)
-       - Include at least one minimal pair if possible
-       - Ref: Phoneme confusion patterns in hearing-impaired Sinhala speakers
-    5. Shuffle the options array so the correct answer is NOT always first.
-    6. RETURN ONLY VALID JSON. No markdown formatting, no code blocks.
-    
-    JSON Format:
+    prompt = f"""You are formatting a Sinhala story for a hearing therapy game for hearing-impaired children.
+
+RAW STORY: "{raw_story_text}"
+TARGET WORDS: {words_list}
+
+TASK: Convert this story into a structured JSON quiz format. EVERY sentence becomes a question.
+
+RULES:
+1. Break the story into individual sentences.
+2. EVERY sentence MUST have has_target_word=true and a target_word with 4 answer options.
+3. For sentences containing a TARGET WORD from the list above, use that target word.
+4. For sentences WITHOUT a target word, pick the most important/concrete NOUN or VERB from that sentence as the target_word.
+5. For each target_word, generate exactly 3 phonetically similar Sinhala distractor words.
+   - Distractors should differ by 1-2 phonemes (voicing: ප→බ, ත→ද, ක→ග; place: ත→ට, ද→ඩ; nasality: ම→බ, න→ද)
+   - At least one distractor should be a minimal pair (differ by exactly 1 phoneme)
+   - All distractors must be real Sinhala words, not nonsense
+6. The options array must contain the correct target_word plus the 3 distractors in SHUFFLED order.
+7. RETURN ONLY VALID JSON. No markdown, no code blocks, no explanation.
+
+JSON FORMAT:
+{{
+  "story_sentences": [
     {{
-      "story_sentences": [
-        {{
-          "text": "Full sentence text",
-          "has_target_word": true,
-          "target_word": "word",
-          "options": ["word", "dist1", "dist2", "dist3"]
-        }}
-      ]
+      "text": "Full original sentence text",
+      "has_target_word": true,
+      "target_word": "the_correct_word",
+      "options": ["distractor1", "the_correct_word", "distractor2", "distractor3"]
     }}
-    """
+  ]
+}}"""
     
     response = client.models.generate_content(
         model='gemini-3.1-pro-preview',
         contents=prompt
     )
-    clean_json = response.text.strip().replace("```json", "").replace("```", "")
+    raw_text = response.text.strip()
+    # Robust JSON extraction — handle markdown fences and surrounding text
+    clean_json = raw_text.replace("```json", "").replace("```", "").strip()
+    # If the model wrapped JSON in extra text, extract the JSON object
+    start = clean_json.find('{')
+    end = clean_json.rfind('}')
+    if start != -1 and end != -1:
+        clean_json = clean_json[start:end + 1]
     return clean_json
 
 def generate_audio_with_gemini(text: str) -> bytes:
@@ -931,6 +948,30 @@ async def get_story(request: StoryRequest):
             story_data = {"story_sentences": story_data}
         elif isinstance(story_data, dict) and "story_sentences" not in story_data:
             story_data = {"story_sentences": []}
+
+        # Validate and fix each sentence object — ensure required fields exist
+        validated_sentences = []
+        for s in story_data.get('story_sentences', []):
+            if not isinstance(s, dict) or not s.get('text'):
+                continue
+            # Ensure has_target_word is always True (our prompt guarantees a target per sentence)
+            s['has_target_word'] = True
+            # Ensure target_word exists
+            if not s.get('target_word'):
+                continue
+            # Ensure options is a list of at least 2 items containing the target word
+            opts = s.get('options', [])
+            if not isinstance(opts, list) or len(opts) < 2:
+                continue
+            if s['target_word'] not in opts:
+                opts[0] = s['target_word']
+            s['options'] = opts
+            validated_sentences.append(s)
+        
+        story_data['story_sentences'] = validated_sentences
+        
+        if not validated_sentences:
+            raise HTTPException(status_code=500, detail="Story formatting produced no valid sentences")
 
         # ===== STEP 4: Save to Database =====
         # Combine sentences to create the full text block for storage
